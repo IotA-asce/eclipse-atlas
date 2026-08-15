@@ -4,6 +4,7 @@ const waves = [
   { amplitude: 0.42, wavelength: 12, speed: 1.45, x: 0.92, z: 0.38 },
   { amplitude: 0.24, wavelength: 6.5, speed: 2.1, x: -0.4, z: 0.92 },
   { amplitude: 0.12, wavelength: 3.2, speed: 3.3, x: 0.67, z: -0.74 },
+  { amplitude: 0.26, wavelength: 19, speed: 0.82, x: -0.809, z: -0.587 },
 ]
 
 export const sampleOcean = (x: number, z: number, time: number): OceanSample => waves.reduce((sample, wave) => {
