@@ -1,7 +1,7 @@
 import { Html, OrbitControls, useTexture } from '@react-three/drei'
 import { Canvas, type ThreeEvent, useFrame, useThree } from '@react-three/fiber'
-import { Component, type ErrorInfo, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
-import { AdditiveBlending, BackSide, SRGBColorSpace, Vector3 } from 'three'
+import { Component, type ErrorInfo, type ReactNode, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { AdditiveBlending, BackSide, Group, SRGBColorSpace, Vector3 } from 'three'
 import type { Coordinates } from '../features/eclipse/coordinates'
 import { configureEarthMapTexture } from './earth-texture'
 import { majorCities } from './geography-data'
@@ -22,6 +22,7 @@ const EARTH_RADIUS_KM = 6371
 const MEAN_MOON_DISTANCE = EARTH_RADIUS * 60.27
 const EARTH_MAP_URL = '/textures/earth-blue-marble-5400.png'
 const MOON_MAP_URL = '/textures/moon-lroc-color-2k.jpg'
+const CLOUD_MAP_URL = '/textures/earth-cloud-cover.png'
 const BORDER_DATA_URL = '/data/ne_110m_admin_0_boundary_lines_land.geojson'
 
 const formatCoordinate = (value: number, positive: string, negative: string) =>
@@ -114,6 +115,24 @@ const EarthMaterial = ({ onLoaded }: { onLoaded: () => void }) => {
   return <meshStandardMaterial map={texture} roughness={0.78} metalness={0.02} emissive="#041522" emissiveIntensity={0.12} />
 }
 
+const CloudLayer = () => {
+  const texture = useTexture(CLOUD_MAP_URL)
+  const cloudGroup = useRef<Group>(null)
+  useEffect(() => {
+    texture.colorSpace = SRGBColorSpace
+    texture.needsUpdate = true
+  }, [texture])
+  useFrame((_, delta) => {
+    if (cloudGroup.current) cloudGroup.current.rotation.y -= delta * 0.006
+  })
+  return <group ref={cloudGroup} raycast={() => undefined} data-testid="animated-cloud-layer">
+    <mesh scale={1.012}>
+      <sphereGeometry args={[EARTH_RADIUS, 96, 64]} />
+      <meshStandardMaterial map={texture} transparent opacity={0.7} depthWrite={false} roughness={0.9} />
+    </mesh>
+  </group>
+}
+
 class EarthTextureBoundary extends Component<{ children: ReactNode; onError: () => void; fallback: ReactNode }, { failed: boolean }> {
   state = { failed: false }
 
@@ -158,6 +177,7 @@ const Earth = ({ onSelectCoordinates, onMapLoaded, onMapError }: Pick<GlobeScene
         <sphereGeometry args={[EARTH_RADIUS, 64, 48]} />
         <meshBasicMaterial color="#89d9ff" transparent opacity={0.07} side={BackSide} />
       </mesh>
+      <Suspense fallback={null}><CloudLayer /></Suspense>
       <BodyLabel position={[EARTH_RADIUS * 1.12, EARTH_RADIUS * 0.5, 0]}>Earth</BodyLabel>
       <GeographicBorders />
       <CityLabels />
