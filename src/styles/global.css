@@ -39,6 +39,8 @@ h1 { margin-bottom: 0.8rem; font-size: clamp(3.25rem, 8vw, 6.5rem); line-height:
 .globe-scene > div { position: absolute !important; inset: 0; }
 .globe-scene canvas { cursor: crosshair; touch-action: none; }
 .globe-scene__hint { position: absolute; right: 1.25rem; bottom: 1.25rem; margin: 0; color: #a8c0cd; font-size: 0.72rem; letter-spacing: 0.06em; pointer-events: none; }
+.globe-scene__status { position: absolute; top: 1.25rem; left: 1.25rem; margin: 0; padding: 0.5rem 0.7rem; border: 1px solid rgb(198 228 240 / 22%); background: rgb(3 12 24 / 72%); color: #d5e8ef; font-size: 0.72rem; letter-spacing: 0.06em; backdrop-filter: blur(0.5rem); pointer-events: none; }
+.globe-scene__status--error { color: #ffd08a; border-color: rgb(255 201 115 / 35%); }
 .atlas-results { animation: emerge 800ms 200ms ease-out both; }
 .atlas-results section { padding: clamp(1.4rem, 3vw, 2.4rem); border: 1px solid rgb(255 219 150 / 18%); background: linear-gradient(145deg, rgb(18 29 42 / 88%), rgb(5 12 23 / 88%)); box-shadow: 1.5rem 1.5rem 4rem rgb(0 0 0 / 20%); }
 .atlas-results h2 { margin-bottom: 1.4rem; font-size: clamp(2rem, 3vw, 3rem); line-height: 0.98; }
@@ -48,6 +50,9 @@ h1 { margin-bottom: 0.8rem; font-size: clamp(3.25rem, 8vw, 6.5rem); line-height:
 .atlas-results dd { margin: 0; font-size: 0.95rem; line-height: 1.45; }
 .atlas-results section > p:last-child { margin: 1.5rem 0 0; color: #a4b1bb; font-size: 0.78rem; font-style: italic; }
 .selection-prompt p:last-child { margin: 0; color: #bdcbd5; line-height: 1.55; }
+.retry-button { margin-top: 1.5rem; padding: 0.68rem 0.95rem; border: 1px solid #ffc96e; background: #ffc96e; color: #172030; font-weight: 700; cursor: pointer; }
+.retry-button:hover { background: #ffe0a2; }
+.retry-button:focus-visible { outline: 3px solid #d5effd; outline-offset: 3px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 @keyframes emerge { from { opacity: 0; transform: translateY(0.8rem); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 760px) { .atlas-shell { padding: 1.5rem; } .atlas-workspace { grid-template-columns: 1fr; } .globe-scene { min-height: 70vw; } }

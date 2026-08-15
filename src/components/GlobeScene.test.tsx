@@ -1,16 +1,18 @@
 import '@testing-library/jest-dom/vitest'
 import { render, screen } from '@testing-library/react'
-import { Vector3 } from 'three'
+import { Texture, Vector3 } from 'three'
 import { expect, it, vi } from 'vitest'
 import { coordinatesFromEarthIntersection } from './globe-intersection'
 import { GlobeScene } from './GlobeScene'
 
 vi.mock('@react-three/fiber', () => ({
   Canvas: ({ children }: { children: React.ReactNode }) => <div data-testid="globe-canvas">{children}</div>,
+  useFrame: () => undefined,
 }))
 
 vi.mock('@react-three/drei', () => ({
   OrbitControls: () => <div data-testid="orbit-controls" />,
+  useTexture: () => new Texture(),
 }))
 
 it('converts a known canvas intersection into a selected geographic point', () => {

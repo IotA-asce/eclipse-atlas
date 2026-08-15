@@ -1,8 +1,9 @@
-import { OrbitControls } from '@react-three/drei'
-import { Canvas, type ThreeEvent } from '@react-three/fiber'
-import { useState } from 'react'
-import { BackSide, Vector3 } from 'three'
+import { OrbitControls, useTexture } from '@react-three/drei'
+import { Canvas, type ThreeEvent, useFrame } from '@react-three/fiber'
+import { Component, type ErrorInfo, type ReactNode, Suspense, useEffect, useRef, useState } from 'react'
+import { AdditiveBlending, BackSide, Group, Vector3 } from 'three'
 import type { Coordinates } from '../features/eclipse/coordinates'
+import { configureEarthMapTexture } from './earth-texture'
 import { coordinatesFromEarthIntersection } from './globe-intersection'
 
 interface GlobeSceneProps {
@@ -11,6 +12,7 @@ interface GlobeSceneProps {
 }
 
 const EARTH_RADIUS = 1.8
+const EARTH_MAP_URL = '/textures/earth-blue-marble-2048.png'
 
 const formatCoordinate = (value: number, positive: string, negative: string) =>
   `${Math.abs(value).toFixed(2)}° ${value >= 0 ? positive : negative}`
@@ -45,7 +47,34 @@ const SelectedLocationPin = ({ coordinates }: { coordinates: Coordinates }) => {
   )
 }
 
-const Earth = ({ onSelectCoordinates }: Pick<GlobeSceneProps, 'onSelectCoordinates'>) => {
+const EarthMaterial = ({ onLoaded }: { onLoaded: () => void }) => {
+  const texture = useTexture(EARTH_MAP_URL)
+
+  useEffect(() => {
+    configureEarthMapTexture(texture)
+    onLoaded()
+  }, [onLoaded, texture])
+
+  return <meshStandardMaterial map={texture} roughness={0.78} metalness={0.02} emissive="#041522" emissiveIntensity={0.12} />
+}
+
+class EarthTextureBoundary extends Component<{ children: ReactNode; onError: () => void; fallback: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+
+  componentDidCatch(_: Error, __: ErrorInfo) {
+    this.props.onError()
+  }
+
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children
+  }
+}
+
+const Earth = ({ onSelectCoordinates, onMapLoaded, onMapError }: Pick<GlobeSceneProps, 'onSelectCoordinates'> & { onMapLoaded: () => void; onMapError: () => void }) => {
   const handleEarthClick = (event: ThreeEvent<MouseEvent>) => {
     event.stopPropagation()
     const coordinates = coordinatesFromEarthIntersection(event.object, event.point)
@@ -56,7 +85,14 @@ const Earth = ({ onSelectCoordinates }: Pick<GlobeSceneProps, 'onSelectCoordinat
     <>
       <mesh data-testid="earth-surface" onClick={handleEarthClick} castShadow receiveShadow>
         <sphereGeometry args={[EARTH_RADIUS, 96, 64]} />
-        <meshStandardMaterial color="#17678f" roughness={0.72} metalness={0.08} emissive="#041522" emissiveIntensity={0.35} />
+        <EarthTextureBoundary
+          onError={onMapError}
+          fallback={<meshStandardMaterial color="#17678f" roughness={0.72} metalness={0.08} emissive="#041522" emissiveIntensity={0.35} />}
+        >
+          <Suspense fallback={<meshStandardMaterial color="#17678f" roughness={0.72} metalness={0.08} emissive="#041522" emissiveIntensity={0.35} />}>
+            <EarthMaterial onLoaded={onMapLoaded} />
+          </Suspense>
+        </EarthTextureBoundary>
       </mesh>
       <mesh scale={1.004} raycast={() => undefined}>
         <sphereGeometry args={[EARTH_RADIUS, 48, 32]} />
@@ -70,12 +106,60 @@ const Earth = ({ onSelectCoordinates }: Pick<GlobeSceneProps, 'onSelectCoordinat
   )
 }
 
+const useReducedMotion = () => {
+  const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false)
+
+  useEffect(() => {
+    if (!window.matchMedia) return
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const update = () => setReducedMotion(query.matches)
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+
+  return reducedMotion
+}
+
+const CelestialIllustration = () => {
+  const moon = useRef<Group>(null)
+  const reducedMotion = useReducedMotion()
+
+  useFrame(({ clock }) => {
+    if (!moon.current || reducedMotion) return
+    const angle = clock.getElapsedTime() * 0.16
+    moon.current.position.set(Math.cos(angle) * 3.05, Math.sin(angle * 1.8) * 0.42, Math.sin(angle) * 1.4)
+  })
+
+  return (
+    <>
+      <group position={[-3.8, 2.5, -1.5]} raycast={() => undefined}>
+        <pointLight intensity={7} distance={14} color="#ffd886" />
+        <mesh>
+          <sphereGeometry args={[0.3, 28, 28]} />
+          <meshBasicMaterial color="#fff2c2" toneMapped={false} />
+        </mesh>
+        <mesh scale={2.8}>
+          <sphereGeometry args={[0.3, 28, 28]} />
+          <meshBasicMaterial color="#ffbf5a" transparent opacity={0.08} blending={AdditiveBlending} depthWrite={false} toneMapped={false} />
+        </mesh>
+      </group>
+      <group ref={moon} position={[3.05, 0, 0]} raycast={() => undefined}>
+        <mesh>
+          <sphereGeometry args={[0.2, 24, 24]} />
+          <meshStandardMaterial color="#b8b4ad" roughness={1} />
+        </mesh>
+      </group>
+    </>
+  )
+}
+
 /**
  * A navigable Earth whose mesh axes match `pointToCoordinates`: Y is north,
  * X is longitude 0°, and positive Z is east.
  */
 export const GlobeScene = ({ onSelectCoordinates, selectedCoordinates }: GlobeSceneProps) => {
   const [selectedLabel, setSelectedLabel] = useState('No location selected yet.')
+  const [mapState, setMapState] = useState<'loading' | 'ready' | 'error'>('loading')
 
   const selectCoordinates = (coordinates: Coordinates) => {
     setSelectedLabel(
@@ -91,10 +175,13 @@ export const GlobeScene = ({ onSelectCoordinates, selectedCoordinates }: GlobeSc
         <ambientLight intensity={0.32} />
         <directionalLight position={[-5, 3, 5]} intensity={2.1} color="#ffe6b0" castShadow />
         <pointLight position={[2, -3, -2]} intensity={0.18} color="#1a83bd" />
-        <Earth onSelectCoordinates={selectCoordinates} />
+        <Earth onSelectCoordinates={selectCoordinates} onMapLoaded={() => setMapState('ready')} onMapError={() => setMapState('error')} />
         {selectedCoordinates ? <SelectedLocationPin coordinates={selectedCoordinates} /> : null}
+        <CelestialIllustration />
         <OrbitControls enableDamping dampingFactor={0.08} enablePan={false} minDistance={3.2} maxDistance={8} />
       </Canvas>
+      {mapState === 'loading' ? <p className="globe-scene__status" role="status">Loading Earth map…</p> : null}
+      {mapState === 'error' ? <p className="globe-scene__status globe-scene__status--error" role="status">Earth map unavailable. Selecting still works.</p> : null}
       <output className="sr-only" aria-live="polite" aria-atomic="true">
         {selectedLabel}
       </output>

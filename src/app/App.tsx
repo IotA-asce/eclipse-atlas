@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { EclipseResultCard } from '../components/EclipseResultCard'
 import { GlobeScene } from '../components/GlobeScene'
 import { findNextLocalSolarEclipse } from '../features/eclipse/eclipse-service'
@@ -7,10 +7,21 @@ import type { LocalSolarEclipse, ObserverLocation } from '../features/eclipse/ty
 function App() {
   const [location, setLocation] = useState<ObserverLocation>()
   const [eclipse, setEclipse] = useState<LocalSolarEclipse>()
+  const [calculationError, setCalculationError] = useState(false)
+
+  const calculateForLocation = useCallback((coordinates: ObserverLocation) => {
+    try {
+      setCalculationError(false)
+      setEclipse(findNextLocalSolarEclipse(coordinates))
+    } catch {
+      setEclipse(undefined)
+      setCalculationError(true)
+    }
+  }, [])
 
   const selectLocation = (coordinates: ObserverLocation) => {
     setLocation(coordinates)
-    setEclipse(findNextLocalSolarEclipse(coordinates))
+    calculateForLocation(coordinates)
   }
 
   return (
@@ -25,6 +36,13 @@ function App() {
         <aside className="atlas-results" aria-live="polite">
           {eclipse && location ? (
             <EclipseResultCard eclipse={eclipse} location={location} />
+          ) : calculationError && location ? (
+            <section className="selection-prompt" aria-labelledby="calculation-error-heading" role="alert">
+              <p className="eyebrow">Calculation interrupted</p>
+              <h2 id="calculation-error-heading">We could not read this horizon</h2>
+              <p>The selected point is saved. Try the eclipse calculation again.</p>
+              <button className="retry-button" type="button" onClick={() => calculateForLocation(location)}>Try again</button>
+            </section>
           ) : (
             <section className="selection-prompt" aria-labelledby="selection-prompt-heading">
               <p className="eyebrow">Your observing point</p>

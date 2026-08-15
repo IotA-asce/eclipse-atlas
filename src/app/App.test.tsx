@@ -35,3 +35,16 @@ it('calculates and displays an eclipse when the globe selects coordinates', () =
   expect(findNextLocalSolarEclipse).toHaveBeenCalledWith({ latitude: 40.7128, longitude: -74.006 })
   expect(screen.getByRole('region', { name: 'Next visible solar eclipse' })).toBeVisible()
 })
+
+it('preserves the selected point and offers a retry when calculation fails', () => {
+  findNextLocalSolarEclipse.mockImplementationOnce(() => {
+    throw new Error('Calculation unavailable')
+  }).mockReturnValueOnce(eclipse)
+  render(<App />)
+
+  fireEvent.click(screen.getByRole('button', { name: 'Select New York' }))
+  expect(screen.getByRole('alert')).toHaveTextContent('We could not read this horizon')
+
+  fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+  expect(screen.getByRole('region', { name: 'Next visible solar eclipse' })).toBeVisible()
+})
