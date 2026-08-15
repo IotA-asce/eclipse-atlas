@@ -24,7 +24,7 @@ export const OceanVessel = ({ type, vesselRef, collisionRef, navigationRef }: { 
     const navigation = navigationRef.current
     buoyancy.current = stepBuoyancy(buoyancy.current, dimensions[0], dimensions[1], clock.getElapsedTime(), delta, navigation.x, navigation.z, navigation.heading)
     const attitude = buoyancy.current
-    vesselRef.current.position.set(navigation.x, attitude.heave + 0.18, navigation.z)
+    vesselRef.current.position.set(navigation.x, attitude.heave + spec.waterlineClearance, navigation.z)
     vesselRef.current.rotation.x = attitude.pitch
     vesselRef.current.rotation.y = navigation.heading
     vesselRef.current.rotation.z = attitude.roll
