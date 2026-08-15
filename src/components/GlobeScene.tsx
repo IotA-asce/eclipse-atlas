@@ -1,5 +1,5 @@
 import { Html, OrbitControls, useTexture } from '@react-three/drei'
-import { Canvas, type ThreeEvent, useThree } from '@react-three/fiber'
+import { Canvas, type ThreeEvent, useFrame, useThree } from '@react-three/fiber'
 import { Component, type ErrorInfo, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
 import { AdditiveBlending, BackSide, SRGBColorSpace, Vector3 } from 'three'
 import type { Coordinates } from '../features/eclipse/coordinates'
@@ -39,11 +39,11 @@ const SelectedLocationPin = ({ coordinates }: { coordinates: Coordinates }) => {
     <group position={pinPosition.toArray()} data-testid="selected-location-pin">
       <mesh>
         <sphereGeometry args={[0.075, 20, 20]} />
-        <meshBasicMaterial color="#ffd27a" toneMapped={false} />
+        <meshBasicMaterial color="#57b7ff" toneMapped={false} />
       </mesh>
       <mesh scale={1.65}>
         <sphereGeometry args={[0.075, 20, 20]} />
-        <meshBasicMaterial color="#ffd27a" transparent opacity={0.16} toneMapped={false} />
+        <meshBasicMaterial color="#57b7ff" transparent opacity={0.18} toneMapped={false} />
       </mesh>
     </group>
   )
@@ -88,12 +88,20 @@ const GeographicBorders = () => {
   </lineSegments>
 }
 
-const MajorCityMarkers = () => <group data-testid="major-city-markers">
-  {majorCities.map((city) => <mesh key={city.name} position={coordinatesToSurfacePoint(city, EARTH_RADIUS + 0.026)} raycast={() => undefined}>
-    <sphereGeometry args={[0.018, 10, 10]} />
-    <meshBasicMaterial color="#ffd37b" toneMapped={false} />
-  </mesh>)}
-</group>
+const CityLabels = () => {
+  const [visible, setVisible] = useState(false)
+  useFrame(({ camera }) => {
+    const shouldShow = camera.position.length() <= 5.2
+    if (shouldShow !== visible) setVisible(shouldShow)
+  })
+  if (!visible) return null
+  return <group data-testid="major-city-labels">
+    {majorCities.map((city) => <group key={city.name} position={coordinatesToSurfacePoint(city, EARTH_RADIUS + 0.026)} raycast={() => undefined}>
+      <mesh><sphereGeometry args={[0.014, 10, 10]} /><meshBasicMaterial color="#eef8ff" toneMapped={false} /></mesh>
+      <Html position={[0.035, 0.035, 0]} center className="city-label"><span>{city.name}</span></Html>
+    </group>)}
+  </group>
+}
 
 const EarthMaterial = ({ onLoaded }: { onLoaded: () => void }) => {
   const texture = useTexture(EARTH_MAP_URL)
@@ -152,7 +160,7 @@ const Earth = ({ onSelectCoordinates, onMapLoaded, onMapError }: Pick<GlobeScene
       </mesh>
       <BodyLabel position={[EARTH_RADIUS * 1.12, EARTH_RADIUS * 0.5, 0]}>Earth</BodyLabel>
       <GeographicBorders />
-      <MajorCityMarkers />
+      <CityLabels />
     </>
   )
 }

@@ -39,8 +39,8 @@ it('renders a non-interactive pin for an already selected location', () => {
   expect(screen.getByTestId('selected-location-pin')).not.toHaveAttribute('tabindex')
 })
 
-it('renders a non-interactive major-city reference overlay', () => {
+it('does not render city labels until the camera is close enough', () => {
   render(<GlobeScene onSelectCoordinates={vi.fn()} />)
 
-  expect(screen.getByTestId('major-city-markers')).toBeInTheDocument()
+  expect(screen.queryByTestId('major-city-labels')).not.toBeInTheDocument()
 })
