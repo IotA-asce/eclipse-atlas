@@ -2,7 +2,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { PointerLockControls, useTexture } from '@react-three/drei'
 import { type MutableRefObject, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import * as Astronomy from 'astronomy-engine'
-import { BackSide, Color, type Camera, type Group, type Object3D, NoColorSpace, RepeatWrapping, ShaderMaterial, Vector3 } from 'three'
+import { BackSide, Color, type Camera, type DirectionalLight, type Group, type Mesh, type Object3D, NoColorSpace, RepeatWrapping, ShaderMaterial, Vector3 } from 'three'
 import { isLocationOnLand, type LandCollection } from '../features/time-jump/land-classifier'
 import { createEclipseTimeline, eclipseCoverageAt, timelineDate } from '../features/time-jump/timeline'
 import type { LocalSolarEclipse, ObserverLocation } from '../features/eclipse/types'
@@ -132,29 +132,49 @@ const WaterSurface = ({ sun, coverage }: { sun: Vector3; coverage: number }) => 
 const SkyDome = ({ sun, coverage }: { sun: Vector3; coverage: number }) => {
   const material = useMemo(() => new ShaderMaterial({ side: BackSide, uniforms: { sunDirection: { value: new Vector3(0, 1, 0) }, eclipse: { value: 0 } }, vertexShader: 'varying vec3 vDirection; void main(){ vDirection=normalize(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }', fragmentShader: `uniform vec3 sunDirection; uniform float eclipse; varying vec3 vDirection;
     float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
-    void main(){ float horizon=pow(1.-max(vDirection.y,0.),1.7); float day=1.-eclipse*.92; vec3 zenith=mix(vec3(.002,.005,.014),vec3(.018,.14,.32),day); vec3 haze=mix(vec3(.01,.012,.02),vec3(.48,.63,.72),day); vec3 color=mix(zenith,haze,horizon); float solar=pow(max(dot(normalize(vDirection),normalize(sunDirection)),0.),260.)+pow(max(dot(normalize(vDirection),normalize(sunDirection)),0.),14.)*.1; color+=vec3(1.,.55,.18)*solar*day; float stars=step(.9978,hash(floor(vDirection.xz*950.))) * smoothstep(.23,.02,day) * smoothstep(-.16,.12,vDirection.y); color+=vec3(stars); gl_FragColor=vec4(color,1.); }` }), [])
+    void main(){ float horizon=pow(1.-max(vDirection.y,0.),1.7); float day=1.-eclipse*.92; vec3 zenith=mix(vec3(.002,.005,.014),vec3(.018,.14,.32),day); vec3 haze=mix(vec3(.01,.012,.02),vec3(.48,.63,.72),day); vec3 color=mix(zenith,haze,horizon); float stars=step(.9978,hash(floor(vDirection.xz*950.))) * smoothstep(.23,.02,day) * smoothstep(-.16,.12,vDirection.y); color+=vec3(stars); gl_FragColor=vec4(color,1.); }` }), [])
   useEffect(() => { material.uniforms.sunDirection.value.copy(sun).normalize(); material.uniforms.eclipse.value = coverage }, [coverage, material, sun])
   useEffect(() => () => material.dispose(), [material])
   return <mesh><sphereGeometry args={[220, 48, 32]} /><primitive object={material} attach="material" /></mesh>
+}
+
+const CelestialBodies = ({ sun, moon, coverage }: { sun: Vector3; moon: Vector3; coverage: number }) => {
+  const sunMesh = useRef<Mesh>(null)
+  const moonMesh = useRef<Mesh>(null)
+  const sunLight = useRef<DirectionalLight>(null)
+  const sunPosition = useMemo(() => new Vector3(), [])
+  const moonPosition = useMemo(() => new Vector3(), [])
+  useFrame(({ camera }) => {
+    sunPosition.copy(sun).multiplyScalar(180).add(camera.position)
+    moonPosition.copy(moon).multiplyScalar(178).add(camera.position)
+    if (sunMesh.current) { sunMesh.current.position.copy(sunPosition); sunMesh.current.visible = sun.y > -0.015 }
+    if (moonMesh.current) { moonMesh.current.position.copy(moonPosition); moonMesh.current.visible = moon.y > -0.015; moonMesh.current.scale.setScalar(1.1 * (1 + Math.max(0, 0.36 - moon.y) * 0.9)) }
+    if (sunLight.current) {
+      sunLight.current.position.copy(sunPosition)
+      sunLight.current.target.position.copy(camera.position)
+      sunLight.current.target.updateMatrixWorld()
+      sunLight.current.intensity = sun.y > -0.015 ? 2.5 * (1 - coverage * 0.86) : 0
+    }
+  })
+  return <>
+    <directionalLight ref={sunLight} color="#fff1c6" castShadow />
+    <mesh ref={sunMesh} raycast={() => undefined}><sphereGeometry args={[1.1, 32, 20]} /><meshBasicMaterial color="#fff1bc" toneMapped={false} /></mesh>
+    <mesh ref={moonMesh} raycast={() => undefined}><sphereGeometry args={[0.72, 32, 20]} /><meshStandardMaterial color="#77767a" roughness={1} /></mesh>
+  </>
 }
 
 const ObserverWorld = ({ location, time, coverage, onLand, vessel, vesselRef, collisionRef, navigationRef }: { location: ObserverLocation; time: Date; coverage: number; onLand: boolean; vessel: VesselType; vesselRef: MutableRefObject<Group | null>; collisionRef: MutableRefObject<Object3D | null>; navigationRef: MutableRefObject<VesselNavigation> }) => {
   const sun = useMemo(() => bodyDirection(Astronomy.Body.Sun, location, time), [location, time])
   const moon = useMemo(() => bodyDirection(Astronomy.Body.Moon, location, time), [location, time])
   const sky = new Color().setHSL(0.59, 0.45, Math.max(0.025, 0.24 * (1 - coverage * 0.9)))
-  const sunPosition = sun.clone().multiplyScalar(80).add(new Vector3(0, 1.65, 0))
-  const moonPosition = moon.clone().multiplyScalar(78).add(new Vector3(0, 1.65, 0))
   return <>
     <color attach="background" args={[sky]} />
     <ObserverCamera direction={sun} />
     <SkyDome sun={sun} coverage={coverage} />
     <hemisphereLight intensity={0.18 * (1 - coverage)} color="#8db6e8" groundColor="#10151d" />
-    <directionalLight position={sunPosition} intensity={2.5 * (1 - coverage * 0.86)} color="#fff1c6" castShadow />
+    <CelestialBodies sun={sun} moon={moon} coverage={coverage} />
     {onLand ? <Terrain location={location} /> : <WaterSurface sun={sun} coverage={coverage} />}
     {onLand ? <group position={[0, 0, -4]}><mesh castShadow><boxGeometry args={[2.4, 0.9, 4.2]} /><meshStandardMaterial color="#18212a" roughness={0.8} /></mesh><mesh position={[0, 0.63, -0.2]} castShadow><boxGeometry args={[1.85, 0.5, 1.9]} /><meshStandardMaterial color="#596c78" roughness={0.6} /></mesh></group> : <OceanVessel type={vessel} vesselRef={vesselRef} collisionRef={collisionRef} navigationRef={navigationRef} />}
-    <mesh position={sunPosition} raycast={() => undefined}><sphereGeometry args={[0.84, 32, 20]} /><meshBasicMaterial color="#fff1bc" toneMapped={false} /></mesh>
-    <pointLight position={sunPosition} intensity={2.2 * (1 - coverage * 0.6)} color="#ffe9ae" distance={180} />
-    <mesh position={moonPosition} scale={1 + Math.max(0, 0.36 - moon.y) * 0.9} raycast={() => undefined}><sphereGeometry args={[0.78, 32, 20]} /><meshStandardMaterial color="#77767a" roughness={1} /></mesh>
   </>
 }
 
