@@ -210,7 +210,7 @@ export const EclipseTimeJump = ({ eclipse, location, onExit }: EclipseTimeJumpPr
   const coverage = eclipseCoverageAt(eclipse, simulatedTime)
   const environment = onLand === undefined ? 'Reading terrain…' : onLand ? 'Roadside observer' : 'Ship-deck observer'
   return <main className="time-jump" aria-label="Eclipse time jump simulation">
-    <Canvas className="time-jump__canvas" shadows camera={{ fov: 58, near: 0.1, far: 300 }}>
+    <Canvas className="time-jump__canvas" shadows="basic" camera={{ fov: 58, near: 0.1, far: 300 }}>
       {onLand === undefined ? null : <Suspense fallback={null}><ObserverWorld location={location} time={simulatedTime} coverage={coverage} onLand={onLand} vessel={vessel} vesselRef={vesselRef} />{onLand ? <FirstPersonMovement /> : <ShipDeckMovement type={vessel} vesselRef={vesselRef} />}<PointerLockControls /></Suspense>}
     </Canvas>
     <section className="time-jump__hud" aria-live="polite">
