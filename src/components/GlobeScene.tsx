@@ -1,9 +1,11 @@
 import { OrbitControls, useTexture } from '@react-three/drei'
 import { Canvas, type ThreeEvent, useFrame } from '@react-three/fiber'
-import { Component, type ErrorInfo, type ReactNode, Suspense, useEffect, useRef, useState } from 'react'
-import { AdditiveBlending, BackSide, Group, Vector3 } from 'three'
+import { Component, type ErrorInfo, type ReactNode, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { AdditiveBlending, BackSide, Group } from 'three'
 import type { Coordinates } from '../features/eclipse/coordinates'
 import { configureEarthMapTexture } from './earth-texture'
+import { majorCities } from './geography-data'
+import { coordinatesToSurfacePoint, moonPositionAt, splitLineAtAntimeridian, type LongitudeLatitude } from './geography'
 import { coordinatesFromEarthIntersection } from './globe-intersection'
 
 interface GlobeSceneProps {
@@ -12,26 +14,14 @@ interface GlobeSceneProps {
 }
 
 const EARTH_RADIUS = 1.8
-const EARTH_MAP_URL = '/textures/earth-blue-marble-2048.png'
+const EARTH_MAP_URL = '/textures/earth-blue-marble-5400.png'
+const BORDER_DATA_URL = '/data/ne_110m_admin_0_boundary_lines_land.geojson'
 
 const formatCoordinate = (value: number, positive: string, negative: string) =>
   `${Math.abs(value).toFixed(2)}° ${value >= 0 ? positive : negative}`
 
-const coordinatesToPoint = ({ latitude, longitude }: Coordinates): [number, number, number] => {
-  const latitudeRadians = (latitude * Math.PI) / 180
-  const longitudeRadians = (longitude * Math.PI) / 180
-  const horizontalRadius = EARTH_RADIUS * Math.cos(latitudeRadians)
-
-  return [
-    horizontalRadius * Math.cos(longitudeRadians),
-    EARTH_RADIUS * Math.sin(latitudeRadians),
-    horizontalRadius * Math.sin(longitudeRadians),
-  ]
-}
-
 const SelectedLocationPin = ({ coordinates }: { coordinates: Coordinates }) => {
-  const [x, y, z] = coordinatesToPoint(coordinates)
-  const pinPosition = new Vector3(x, y, z).normalize().multiplyScalar(EARTH_RADIUS + 0.045)
+  const pinPosition = coordinatesToSurfacePoint(coordinates, EARTH_RADIUS + 0.045)
 
   return (
     <group position={pinPosition.toArray()} data-testid="selected-location-pin">
@@ -46,6 +36,52 @@ const SelectedLocationPin = ({ coordinates }: { coordinates: Coordinates }) => {
     </group>
   )
 }
+
+type GeoJsonGeometry = { type: 'LineString' | 'MultiLineString'; coordinates: LongitudeLatitude[] | LongitudeLatitude[][] }
+type GeoJsonFeature = { geometry: GeoJsonGeometry }
+type GeoJsonCollection = { features: GeoJsonFeature[] }
+
+const extractBorderLines = (collection: GeoJsonCollection) => collection.features.flatMap(({ geometry }) => {
+  const lines = geometry.type === 'LineString' ? [geometry.coordinates as LongitudeLatitude[]] : geometry.coordinates as LongitudeLatitude[][]
+  return lines.flatMap(splitLineAtAntimeridian).filter((line) => line.length > 1)
+})
+
+const GeographicBorders = () => {
+  const [borderLines, setBorderLines] = useState<LongitudeLatitude[][]>([])
+
+  useEffect(() => {
+    let active = true
+    void fetch(BORDER_DATA_URL)
+      .then((response) => response.ok ? response.json() as Promise<GeoJsonCollection> : Promise.reject(new Error('Border data unavailable')))
+      .then((collection) => { if (active) setBorderLines(extractBorderLines(collection)) })
+      .catch(() => undefined)
+    return () => { active = false }
+  }, [])
+
+  const positions = useMemo(() => {
+    const values: number[] = []
+    for (const line of borderLines) {
+      for (let index = 1; index < line.length; index += 1) {
+        values.push(...coordinatesToSurfacePoint({ longitude: line[index - 1][0], latitude: line[index - 1][1] }, EARTH_RADIUS + 0.011).toArray())
+        values.push(...coordinatesToSurfacePoint({ longitude: line[index][0], latitude: line[index][1] }, EARTH_RADIUS + 0.011).toArray())
+      }
+    }
+    return new Float32Array(values)
+  }, [borderLines])
+
+  if (positions.length === 0) return null
+  return <lineSegments raycast={() => undefined} data-testid="geographic-borders">
+    <bufferGeometry><bufferAttribute attach="attributes-position" args={[positions, 3]} /></bufferGeometry>
+    <lineBasicMaterial color="#e9f5e7" transparent opacity={0.48} depthWrite={false} />
+  </lineSegments>
+}
+
+const MajorCityMarkers = () => <group data-testid="major-city-markers">
+  {majorCities.map((city) => <mesh key={city.name} position={coordinatesToSurfacePoint(city, EARTH_RADIUS + 0.026)} raycast={() => undefined}>
+    <sphereGeometry args={[0.018, 10, 10]} />
+    <meshBasicMaterial color="#ffd37b" toneMapped={false} />
+  </mesh>)}
+</group>
 
 const EarthMaterial = ({ onLoaded }: { onLoaded: () => void }) => {
   const texture = useTexture(EARTH_MAP_URL)
@@ -102,6 +138,8 @@ const Earth = ({ onSelectCoordinates, onMapLoaded, onMapError }: Pick<GlobeScene
         <sphereGeometry args={[EARTH_RADIUS, 64, 48]} />
         <meshBasicMaterial color="#89d9ff" transparent opacity={0.07} side={BackSide} />
       </mesh>
+      <GeographicBorders />
+      <MajorCityMarkers />
     </>
   )
 }
@@ -126,8 +164,7 @@ const CelestialIllustration = () => {
 
   useFrame(({ clock }) => {
     if (!moon.current || reducedMotion) return
-    const angle = clock.getElapsedTime() * 0.16
-    moon.current.position.set(Math.cos(angle) * 3.05, Math.sin(angle * 1.8) * 0.42, Math.sin(angle) * 1.4)
+    moon.current.position.copy(moonPositionAt(EARTH_RADIUS, clock.getElapsedTime()))
   })
 
   return (
@@ -143,7 +180,7 @@ const CelestialIllustration = () => {
           <meshBasicMaterial color="#ffbf5a" transparent opacity={0.08} blending={AdditiveBlending} depthWrite={false} toneMapped={false} />
         </mesh>
       </group>
-      <group ref={moon} position={[3.05, 0, 0]} raycast={() => undefined}>
+      <group ref={moon} position={moonPositionAt(EARTH_RADIUS, 0)} raycast={() => undefined}>
         <mesh>
           <sphereGeometry args={[0.2, 24, 24]} />
           <meshStandardMaterial color="#b8b4ad" roughness={1} />
