@@ -43,6 +43,7 @@ h1 { margin-bottom: 0.8rem; font-size: clamp(3.25rem, 8vw, 6.5rem); line-height:
 .globe-scene__status--error { color: #ffd08a; border-color: rgb(255 201 115 / 35%); }
 .orbit-view-toggle { position: absolute; left: 1.25rem; bottom: 1.25rem; padding: 0.62rem 0.82rem; border: 1px solid rgb(193 224 241 / 35%); background: rgb(3 12 24 / 78%); color: #e7f3f9; cursor: pointer; }
 .orbit-view-toggle:hover { border-color: #ffd27a; color: #ffd27a; }
+.celestial-label span { display: block; padding: 0.28rem 0.45rem; border: 1px solid rgb(217 237 246 / 40%); border-radius: 999px; background: rgb(1 7 16 / 76%); color: #f5fbff; font: 600 0.7rem/1 "Avenir Next", "Segoe UI", sans-serif; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; pointer-events: none; }
 .atlas-results { position: fixed; z-index: 2; right: clamp(1.25rem, 3vw, 3rem); bottom: clamp(1.25rem, 3vw, 3rem); width: min(27rem, calc(100vw - 2.5rem)); animation: emerge 800ms 200ms ease-out both; }
 .atlas-results section { padding: clamp(1.4rem, 3vw, 2.4rem); border: 1px solid rgb(255 219 150 / 18%); background: linear-gradient(145deg, rgb(18 29 42 / 88%), rgb(5 12 23 / 88%)); box-shadow: 1.5rem 1.5rem 4rem rgb(0 0 0 / 20%); }
 .atlas-results h2 { margin-bottom: 1.4rem; font-size: clamp(2rem, 3vw, 3rem); line-height: 0.98; }

@@ -1,4 +1,4 @@
-import { OrbitControls, useTexture } from '@react-three/drei'
+import { Html, OrbitControls, useTexture } from '@react-three/drei'
 import { Canvas, type ThreeEvent, useThree } from '@react-three/fiber'
 import { Component, type ErrorInfo, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
 import { AdditiveBlending, BackSide, SRGBColorSpace, Vector3 } from 'three'
@@ -26,6 +26,11 @@ const BORDER_DATA_URL = '/data/ne_110m_admin_0_boundary_lines_land.geojson'
 
 const formatCoordinate = (value: number, positive: string, negative: string) =>
   `${Math.abs(value).toFixed(2)}° ${value >= 0 ? positive : negative}`
+
+const BodyLabel = ({ children, position }: { children: string; position: [number, number, number] }) =>
+  <Html position={position} center className="celestial-label" occlude>
+    <span>{children}</span>
+  </Html>
 
 const SelectedLocationPin = ({ coordinates }: { coordinates: Coordinates }) => {
   const pinPosition = coordinatesToSurfacePoint(coordinates, EARTH_RADIUS + 0.045)
@@ -145,6 +150,7 @@ const Earth = ({ onSelectCoordinates, onMapLoaded, onMapError }: Pick<GlobeScene
         <sphereGeometry args={[EARTH_RADIUS, 64, 48]} />
         <meshBasicMaterial color="#89d9ff" transparent opacity={0.07} side={BackSide} />
       </mesh>
+      <BodyLabel position={[EARTH_RADIUS * 1.12, EARTH_RADIUS * 0.5, 0]}>Earth</BodyLabel>
       <GeographicBorders />
       <MajorCityMarkers />
     </>
@@ -191,9 +197,11 @@ const CelestialIllustration = ({ observer }: { observer?: Coordinates }) => {
           <sphereGeometry args={[SUN_RADIUS, 48, 32]} />
           <meshBasicMaterial color="#ffbf5a" transparent opacity={0.08} blending={AdditiveBlending} depthWrite={false} toneMapped={false} />
         </mesh>
+        <BodyLabel position={[SUN_RADIUS * 1.18, 0, 0]}>The Sun</BodyLabel>
       </group>
       <group position={moon.toArray()} raycast={() => undefined}>
         <Moon />
+        <BodyLabel position={[MOON_RADIUS * 1.7, 0, 0]}>Moon</BodyLabel>
       </group>
     </>
   )

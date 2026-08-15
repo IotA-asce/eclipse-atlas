@@ -13,6 +13,7 @@ vi.mock('@react-three/fiber', () => ({
 
 vi.mock('@react-three/drei', () => ({
   OrbitControls: () => <div data-testid="orbit-controls" />,
+  Html: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   useTexture: () => new Texture(),
 }))
 
