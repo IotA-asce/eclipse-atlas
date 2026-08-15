@@ -87,11 +87,14 @@ export const stepCloudSimulation = (simulation: CloudSimulation, seconds: number
       const east = cloudWater[cellIndex(x + 1, y, width)]
       const diffusion = (north + south + west + east - cloudWater[index] * 4) * 0.055 * dt
       const saturation = 0.49 + temperature[index] * 0.16 + Math.abs(latitude) * 0.08
-      const condensation = Math.max(0, advectedHumidity - saturation) * 0.46 * dt
-      const evaporation = Math.max(0, saturation - advectedHumidity) * 0.12 * dt + temperature[index] * 0.006 * dt
-      const moistureSource = (0.012 + Math.max(0, Math.cos(latitude)) * 0.014 + (vortex + 1) * 0.002) * dt
+      const condensation = Math.max(0, advectedHumidity - saturation) * 0.27 * dt
+      const dryAir = Math.max(0, saturation - advectedHumidity)
+      const evaporation = advectedCloud * (0.022 + temperature[index] * 0.035 + dryAir * 0.11) * dt
+      const equilibriumHumidity = 0.35 + Math.max(0, Math.cos(latitude)) * 0.26 + vortex * 0.045
+      const humidityRelaxation = (equilibriumHumidity - advectedHumidity) * 0.055 * dt
+      const uplift = Math.max(0, vortex) * Math.max(0, Math.cos(latitude)) * 0.01 * dt
       nextCloudWater[index] = clamp(advectedCloud + condensation + diffusion - evaporation)
-      nextHumidity[index] = clamp(advectedHumidity + moistureSource - condensation * 0.7 - nextCloudWater[index] * 0.002 * dt)
+      nextHumidity[index] = clamp(advectedHumidity + humidityRelaxation + uplift - condensation * 0.8)
     }
   }
 
