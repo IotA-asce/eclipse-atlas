@@ -2,12 +2,12 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { PointerLockControls, useTexture } from '@react-three/drei'
 import { type MutableRefObject, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import * as Astronomy from 'astronomy-engine'
-import { BackSide, Color, type Camera, type Group, type Object3D, NoColorSpace, RepeatWrapping, ShaderMaterial, Vector3, Vector4 } from 'three'
+import { BackSide, Color, type Camera, type Group, type Object3D, NoColorSpace, RepeatWrapping, ShaderMaterial, Vector3 } from 'three'
 import { isLocationOnLand, type LandCollection } from '../features/time-jump/land-classifier'
 import { createEclipseTimeline, eclipseCoverageAt, timelineDate } from '../features/time-jump/timeline'
 import type { LocalSolarEclipse, ObserverLocation } from '../features/eclipse/types'
 import { OceanVessel } from './OceanVessel'
-import { vesselSpecs, vesselTypes, type VesselType } from '../features/time-jump/vessel-types'
+import { vesselTypes, type VesselType } from '../features/time-jump/vessel-types'
 import { restingNavigation, stepVesselNavigation, type VesselNavigation } from '../features/time-jump/vessel-navigation'
 
 interface EclipseTimeJumpProps { eclipse: LocalSolarEclipse; location: ObserverLocation; onExit: () => void }
@@ -116,16 +116,13 @@ const Terrain = ({ location }: { location: ObserverLocation }) => {
   return <mesh position={[0, -1.4, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[160, 160, 160, 160]} /><meshStandardMaterial color="#4b5635" displacementMap={elevation} displacementScale={4.2} displacementBias={-1.4} roughness={0.96} /></mesh>
 }
 
-const WaterSurface = ({ sun, coverage, vessel, vesselRef }: { sun: Vector3; coverage: number; vessel: VesselType; vesselRef: MutableRefObject<Group | null> }) => {
-  const material = useMemo(() => new ShaderMaterial({ transparent: false, uniforms: { time: { value: 0 }, sunDirection: { value: new Vector3(0, 1, 0) }, eclipse: { value: 0 }, hullMask: { value: new Vector4(0, 0, 0, 0) } }, vertexShader: `uniform float time; varying vec3 vWorld; varying float vCrest;
+const WaterSurface = ({ sun, coverage }: { sun: Vector3; coverage: number }) => {
+  const material = useMemo(() => new ShaderMaterial({ transparent: false, uniforms: { time: { value: 0 }, sunDirection: { value: new Vector3(0, 1, 0) }, eclipse: { value: 0 } }, vertexShader: `uniform float time; varying vec3 vWorld; varying float vCrest;
     float wave(vec2 p, vec2 dir, float length, float amplitude, float speed){ return amplitude*sin(dot(p,dir)*6.28318/length-speed*time); }
     void main(){ vec3 p=position; vec2 q=p.xy; float h=wave(q,normalize(vec2(.92,.38)),12.,.42,1.45)+wave(q,normalize(vec2(-.4,.92)),6.5,.24,2.1)+wave(q,normalize(vec2(.67,-.74)),3.2,.12,3.3)+wave(q,normalize(vec2(-.8,-.58)),19.,.26,.82); p.z+=h; vCrest=smoothstep(.35,.82,h); vec4 world=modelMatrix*vec4(p,1.); vWorld=world.xyz; gl_Position=projectionMatrix*viewMatrix*world; }`, fragmentShader: `uniform vec3 sunDirection; uniform float eclipse; varying vec3 vWorld; varying float vCrest;
-    void main(){ vec2 hullOffset=abs(vWorld.xz-hullMask.xy)-hullMask.zw; if(max(hullOffset.x,hullOffset.y)<0.) discard; vec3 normal=normalize(cross(dFdx(vWorld),dFdy(vWorld))); if(!gl_FrontFacing) normal=-normal; vec3 view=normalize(cameraPosition-vWorld); float fresnel=pow(1.-max(dot(view,normal),0.),5.); vec3 light=normalize(sunDirection); vec3 halfVector=normalize(view+light); float glint=pow(max(dot(normal,halfVector),0.),180.)*(1.-eclipse*.7); vec3 deep=vec3(.004,.035,.075); vec3 horizon=vec3(.035,.24,.36); vec3 color=mix(deep,horizon,fresnel*.85+max(normal.y,0.)*.12); color+=vec3(1.,.78,.4)*glint; color=mix(color,vec3(.78,.9,.88),vCrest*(.22+.55*fresnel)); gl_FragColor=vec4(color,1.); }` }), [])
+    void main(){ vec3 normal=normalize(cross(dFdx(vWorld),dFdy(vWorld))); if(!gl_FrontFacing) normal=-normal; vec3 view=normalize(cameraPosition-vWorld); float fresnel=pow(1.-max(dot(view,normal),0.),5.); vec3 light=normalize(sunDirection); vec3 halfVector=normalize(view+light); float glint=pow(max(dot(normal,halfVector),0.),180.)*(1.-eclipse*.7); vec3 deep=vec3(.004,.035,.075); vec3 horizon=vec3(.035,.24,.36); vec3 color=mix(deep,horizon,fresnel*.85+max(normal.y,0.)*.12); color+=vec3(1.,.78,.4)*glint; color=mix(color,vec3(.78,.9,.88),vCrest*(.22+.55*fresnel)); gl_FragColor=vec4(color,1.); }` }), [])
   useFrame(({ clock }) => {
     material.uniforms.time.value = clock.getElapsedTime()
-    const spec = vesselSpecs[vessel]
-    const position = vesselRef.current?.position
-    material.uniforms.hullMask.value.set(position?.x ?? 0, position?.z ?? 0, spec.deck.halfWidth + spec.waterMaskPadding, spec.deck.halfLength + spec.waterMaskPadding)
   })
   useEffect(() => { material.uniforms.sunDirection.value.copy(sun).normalize(); material.uniforms.eclipse.value = coverage }, [coverage, material, sun])
   useEffect(() => () => material.dispose(), [material])
@@ -153,7 +150,7 @@ const ObserverWorld = ({ location, time, coverage, onLand, vessel, vesselRef, co
     <SkyDome sun={sun} coverage={coverage} />
     <hemisphereLight intensity={0.18 * (1 - coverage)} color="#8db6e8" groundColor="#10151d" />
     <directionalLight position={sunPosition} intensity={2.5 * (1 - coverage * 0.86)} color="#fff1c6" castShadow />
-    {onLand ? <Terrain location={location} /> : <WaterSurface sun={sun} coverage={coverage} vessel={vessel} vesselRef={vesselRef} />}
+    {onLand ? <Terrain location={location} /> : <WaterSurface sun={sun} coverage={coverage} />}
     {onLand ? <group position={[0, 0, -4]}><mesh castShadow><boxGeometry args={[2.4, 0.9, 4.2]} /><meshStandardMaterial color="#18212a" roughness={0.8} /></mesh><mesh position={[0, 0.63, -0.2]} castShadow><boxGeometry args={[1.85, 0.5, 1.9]} /><meshStandardMaterial color="#596c78" roughness={0.6} /></mesh></group> : <OceanVessel type={vessel} vesselRef={vesselRef} collisionRef={collisionRef} navigationRef={navigationRef} />}
     <mesh position={sunPosition} raycast={() => undefined}><sphereGeometry args={[0.84, 32, 20]} /><meshBasicMaterial color="#fff1bc" toneMapped={false} /></mesh>
     <pointLight position={sunPosition} intensity={2.2 * (1 - coverage * 0.6)} color="#ffe9ae" distance={180} />
