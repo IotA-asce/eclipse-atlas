@@ -1,13 +1,14 @@
 import { Html, OrbitControls, useTexture } from '@react-three/drei'
 import { Canvas, type ThreeEvent, useFrame, useThree } from '@react-three/fiber'
 import { Component, type ErrorInfo, type ReactNode, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { AdditiveBlending, BackSide, DataTexture, LinearFilter, RGBAFormat, SRGBColorSpace, Vector3 } from 'three'
+import { AdditiveBlending, BackSide, DataTexture, FrontSide, LinearFilter, RGBAFormat, SRGBColorSpace, ShaderMaterial, Vector3 } from 'three'
 import type { Coordinates } from '../features/eclipse/coordinates'
 import { configureEarthMapTexture } from './earth-texture'
 import { majorCities } from './geography-data'
 import { coordinatesToSurfacePoint, splitLineAtAntimeridian, type LongitudeLatitude } from './geography'
 import { coordinatesFromEarthIntersection } from './globe-intersection'
 import { createCloudSimulation, stepCloudSimulation, writeCloudTexture } from '../features/atmosphere/cloud-simulation'
+import { cloudFragmentShader, cloudVertexShader } from '../features/atmosphere/cloud-shader'
 import * as Astronomy from 'astronomy-engine'
 
 interface GlobeSceneProps {
@@ -115,7 +116,7 @@ const EarthMaterial = ({ onLoaded }: { onLoaded: () => void }) => {
   return <meshStandardMaterial map={texture} roughness={0.78} metalness={0.02} emissive="#041522" emissiveIntensity={0.12} />
 }
 
-const CloudLayer = () => {
+const CloudLayer = ({ sunDirection }: { sunDirection: Vector3 }) => {
   const simulation = useMemo(() => createCloudSimulation(), [])
   const texture = useMemo(() => {
     const pixels = new Uint8Array(simulation.width * simulation.height * 4)
@@ -128,26 +129,45 @@ const CloudLayer = () => {
     return generatedTexture
   }, [simulation])
   const elapsedSinceUpdate = useRef(0)
+  const material = useMemo(() => new ShaderMaterial({
+    uniforms: {
+      weatherMap: { value: texture },
+      cameraWorldPosition: { value: new Vector3() },
+      sunDirection: { value: sunDirection.clone() },
+      time: { value: 0 },
+      innerRadius: { value: EARTH_RADIUS * 1.008 },
+      outerRadius: { value: EARTH_RADIUS * 1.05 },
+    },
+    vertexShader: cloudVertexShader,
+    fragmentShader: cloudFragmentShader,
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    side: FrontSide,
+  }), [sunDirection, texture])
 
   useEffect(() => {
-    return () => texture.dispose()
-  }, [texture])
-  useFrame((_, delta) => {
+    return () => {
+      texture.dispose()
+      material.dispose()
+    }
+  }, [material, texture])
+  useFrame(({ camera, clock }, delta) => {
     elapsedSinceUpdate.current += delta
-    if (elapsedSinceUpdate.current < 0.12) return
-    stepCloudSimulation(simulation, elapsedSinceUpdate.current * 0.8)
-    writeCloudTexture(simulation, texture.image.data as Uint8Array)
-    texture.needsUpdate = true
-    elapsedSinceUpdate.current = 0
+    material.uniforms.cameraWorldPosition.value.copy(camera.position)
+    material.uniforms.sunDirection.value.copy(sunDirection)
+    material.uniforms.time.value = clock.getElapsedTime()
+    if (elapsedSinceUpdate.current >= 0.12) {
+      stepCloudSimulation(simulation, elapsedSinceUpdate.current * 0.8)
+      writeCloudTexture(simulation, texture.image.data as Uint8Array)
+      texture.needsUpdate = true
+      elapsedSinceUpdate.current = 0
+    }
   })
-  return <group raycast={() => undefined} data-testid="simulated-cloud-layer">
-    <mesh scale={1.012}>
+  return <group raycast={() => undefined} data-testid="volumetric-cloud-layer">
+    <mesh scale={1.05}>
       <sphereGeometry args={[EARTH_RADIUS, 96, 64]} />
-      <meshStandardMaterial map={texture} transparent opacity={0.78} depthWrite={false} roughness={0.94} />
-    </mesh>
-    <mesh scale={1.018}>
-      <sphereGeometry args={[EARTH_RADIUS, 96, 64]} />
-      <meshStandardMaterial map={texture} transparent opacity={0.18} depthWrite={false} roughness={1} />
+      <primitive object={material} attach="material" />
     </mesh>
   </group>
 }
@@ -168,7 +188,7 @@ class EarthTextureBoundary extends Component<{ children: ReactNode; onError: () 
   }
 }
 
-const Earth = ({ onSelectCoordinates, onMapLoaded, onMapError }: Pick<GlobeSceneProps, 'onSelectCoordinates'> & { onMapLoaded: () => void; onMapError: () => void }) => {
+const Earth = ({ onSelectCoordinates, onMapLoaded, onMapError, sunDirection }: Pick<GlobeSceneProps, 'onSelectCoordinates'> & { onMapLoaded: () => void; onMapError: () => void; sunDirection: Vector3 }) => {
   const handleEarthClick = (event: ThreeEvent<MouseEvent>) => {
     event.stopPropagation()
     const coordinates = coordinatesFromEarthIntersection(event.object, event.point)
@@ -196,7 +216,7 @@ const Earth = ({ onSelectCoordinates, onMapLoaded, onMapError }: Pick<GlobeScene
         <sphereGeometry args={[EARTH_RADIUS, 64, 48]} />
         <meshBasicMaterial color="#89d9ff" transparent opacity={0.07} side={BackSide} />
       </mesh>
-      <Suspense fallback={null}><CloudLayer /></Suspense>
+      <CloudLayer sunDirection={sunDirection} />
       <BodyLabel position={[EARTH_RADIUS * 1.12, EARTH_RADIUS * 0.5, 0]}>Earth</BodyLabel>
       <GeographicBorders />
       <CityLabels />
@@ -227,12 +247,7 @@ const LunarOrbitPath = ({ time }: { time: Date }) => {
   </lineSegments>
 }
 
-const CelestialIllustration = () => {
-  const [time, setTime] = useState(() => new Date())
-  useEffect(() => {
-    const interval = window.setInterval(() => setTime(new Date()), 60_000)
-    return () => window.clearInterval(interval)
-  }, [])
+const CelestialIllustration = ({ time }: { time: Date }) => {
   const { sun, moon } = useMemo(() => ({
     sun: geocentricSceneVector(Astronomy.Body.Sun, time),
     moon: geocentricSceneVector(Astronomy.Body.Moon, time),
@@ -328,6 +343,12 @@ export const GlobeScene = ({ onSelectCoordinates, selectedCoordinates }: GlobeSc
   const [selectedLabel, setSelectedLabel] = useState('No location selected yet.')
   const [mapState, setMapState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [systemView, setSystemView] = useState(false)
+  const [sceneTime, setSceneTime] = useState(() => new Date())
+  useEffect(() => {
+    const interval = window.setInterval(() => setSceneTime(new Date()), 60_000)
+    return () => window.clearInterval(interval)
+  }, [])
+  const sunDirection = useMemo(() => geocentricSceneVector(Astronomy.Body.Sun, sceneTime).normalize(), [sceneTime])
 
   const selectCoordinates = (coordinates: Coordinates) => {
     setSelectedLabel(
@@ -343,9 +364,9 @@ export const GlobeScene = ({ onSelectCoordinates, selectedCoordinates }: GlobeSc
         <ambientLight intensity={0.035} />
         <RealStarField observer={selectedCoordinates} />
         <CameraPreset systemView={systemView} />
-        <Earth onSelectCoordinates={selectCoordinates} onMapLoaded={() => setMapState('ready')} onMapError={() => setMapState('error')} />
+        <Earth onSelectCoordinates={selectCoordinates} onMapLoaded={() => setMapState('ready')} onMapError={() => setMapState('error')} sunDirection={sunDirection} />
         {selectedCoordinates ? <SelectedLocationPin coordinates={selectedCoordinates} /> : null}
-        <CelestialIllustration />
+        <CelestialIllustration time={sceneTime} />
         <OrbitControls enableDamping dampingFactor={0.08} enablePan={false} minDistance={3.2} maxDistance={EARTH_RADIUS * 100} />
       </Canvas>
       {mapState === 'loading' ? <p className="globe-scene__status" role="status">Loading Earth map…</p> : null}
