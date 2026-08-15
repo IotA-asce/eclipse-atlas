@@ -16,6 +16,11 @@ interface GlobeSceneProps {
 }
 
 const EARTH_RADIUS = 1.8
+// Mean physical ratios relative to Earth's radius. Positions are topocentric directions.
+const MOON_RADIUS = EARTH_RADIUS * 0.2727
+const MOON_DISTANCE = EARTH_RADIUS * 60.27
+const SUN_RADIUS = EARTH_RADIUS * 109.1
+const SUN_DISTANCE = EARTH_RADIUS * 23_455
 const EARTH_MAP_URL = '/textures/earth-blue-marble-5400.png'
 const MOON_MAP_URL = '/textures/moon-lroc-color-2k.jpg'
 const BORDER_DATA_URL = '/data/ne_110m_admin_0_boundary_lines_land.geojson'
@@ -168,19 +173,22 @@ const CelestialIllustration = ({ observer }: { observer?: Coordinates }) => {
     }
     const sun = horizontal(Astronomy.Body.Sun)
     const moon = horizontal(Astronomy.Body.Moon)
-    return { sun: skyVector(sun.altitude, sun.azimuth, 14), moon: skyVector(moon.altitude, moon.azimuth, 3.2) }
+    return {
+      sun: skyVector(sun.altitude, sun.azimuth, SUN_DISTANCE),
+      moon: skyVector(moon.altitude, moon.azimuth, MOON_DISTANCE),
+    }
   }, [observer, time])
 
   return (
     <>
       <group position={sun.toArray()} raycast={() => undefined}>
-        <pointLight intensity={11} distance={0} decay={0} color="#fff0c7" castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
+        <directionalLight intensity={2.6} color="#fff0c7" castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
         <mesh>
-          <sphereGeometry args={[0.3, 28, 28]} />
+          <sphereGeometry args={[SUN_RADIUS, 48, 32]} />
           <meshBasicMaterial color="#fff2c2" toneMapped={false} />
         </mesh>
-        <mesh scale={2.8}>
-          <sphereGeometry args={[0.3, 28, 28]} />
+        <mesh scale={1.35}>
+          <sphereGeometry args={[SUN_RADIUS, 48, 32]} />
           <meshBasicMaterial color="#ffbf5a" transparent opacity={0.08} blending={AdditiveBlending} depthWrite={false} toneMapped={false} />
         </mesh>
       </group>
@@ -206,7 +214,8 @@ const RealStarField = ({ observer }: { observer?: Coordinates }) => {
       if (horizontal.altitude <= 0) continue
       const altitude = horizontal.altitude * Math.PI / 180
       const azimuth = horizontal.azimuth * Math.PI / 180
-      const radius = 18
+      // Stars are effectively at infinity; this shell remains beyond the Moon while preserving their directions.
+      const radius = MOON_DISTANCE * 2
       values.push(radius * Math.cos(altitude) * Math.sin(azimuth), radius * Math.sin(altitude), radius * Math.cos(altitude) * Math.cos(azimuth))
     }
     return new Float32Array(values)
@@ -225,7 +234,7 @@ const Moon = () => {
   }, [texture])
 
   return <mesh castShadow receiveShadow>
-    <sphereGeometry args={[0.2, 64, 48]} />
+    <sphereGeometry args={[MOON_RADIUS, 64, 48]} />
     <meshStandardMaterial map={texture} roughness={0.94} metalness={0} />
   </mesh>
 }
@@ -247,14 +256,14 @@ export const GlobeScene = ({ onSelectCoordinates, selectedCoordinates }: GlobeSc
 
   return (
     <section className="globe-scene" aria-label="Interactive Earth globe">
-      <Canvas camera={{ position: [0, 0.4, 5.5], fov: 42 }} dpr={[1, 1.75]} shadows>
+      <Canvas camera={{ position: [0, 0.4, 5.5], fov: 42, far: SUN_DISTANCE * 1.1 }} dpr={[1, 1.75]} shadows>
         <color attach="background" args={['#00030a']} />
         <ambientLight intensity={0.035} />
         <RealStarField observer={selectedCoordinates} />
         <Earth onSelectCoordinates={selectCoordinates} onMapLoaded={() => setMapState('ready')} onMapError={() => setMapState('error')} />
         {selectedCoordinates ? <SelectedLocationPin coordinates={selectedCoordinates} /> : null}
         <CelestialIllustration observer={selectedCoordinates} />
-        <OrbitControls enableDamping dampingFactor={0.08} enablePan={false} minDistance={3.2} maxDistance={8} />
+        <OrbitControls enableDamping dampingFactor={0.08} enablePan={false} minDistance={3.2} maxDistance={MOON_DISTANCE * 1.5} />
       </Canvas>
       {mapState === 'loading' ? <p className="globe-scene__status" role="status">Loading Earth map…</p> : null}
       {mapState === 'error' ? <p className="globe-scene__status globe-scene__status--error" role="status">Earth map unavailable. Selecting still works.</p> : null}
