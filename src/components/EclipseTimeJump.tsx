@@ -1,7 +1,8 @@
-import { Canvas, useThree } from '@react-three/fiber'
-import { useEffect, useMemo, useState } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { PointerLockControls, useTexture } from '@react-three/drei'
+import { type MutableRefObject, useEffect, useMemo, useRef, useState } from 'react'
 import * as Astronomy from 'astronomy-engine'
-import { Color, Vector3 } from 'three'
+import { Color, type Camera, NoColorSpace, RepeatWrapping, ShaderMaterial, Vector3 } from 'three'
 import { isLocationOnLand, type LandCollection } from '../features/time-jump/land-classifier'
 import { createEclipseTimeline, eclipseCoverageAt, timelineDate } from '../features/time-jump/timeline'
 import type { LocalSolarEclipse, ObserverLocation } from '../features/eclipse/types'
@@ -30,6 +31,61 @@ const ObserverCamera = ({ direction }: { direction: Vector3 }) => {
   return null
 }
 
+const FirstPersonMovement = () => {
+  const { camera } = useThree()
+  const held = useRef(new Set<string>())
+  useEffect(() => {
+    const down = (event: KeyboardEvent) => held.current.add(event.code)
+    const up = (event: KeyboardEvent) => held.current.delete(event.code)
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
+  }, [])
+  useEffect(() => {
+    const listener = () => { held.current.clear() }
+    window.addEventListener('blur', listener)
+    return () => window.removeEventListener('blur', listener)
+  }, [])
+  return <MovementFrame camera={camera} held={held} />
+}
+
+const MovementFrame = ({ camera, held }: { camera: Camera; held: MutableRefObject<Set<string>> }) => {
+  const { gl } = useThree()
+  useEffect(() => {
+    const move = (event: KeyboardEvent) => {
+      if (!['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) return
+      if (document.pointerLockElement === gl.domElement) event.preventDefault()
+    }
+    window.addEventListener('keydown', move)
+    return () => window.removeEventListener('keydown', move)
+  }, [gl])
+  useFrame((_, delta) => {
+    const keys = held.current
+    const forward = new Vector3(0, 0, -1).applyQuaternion(camera.quaternion); forward.y = 0; forward.normalize()
+    const right = new Vector3(1, 0, 0).applyQuaternion(camera.quaternion); right.y = 0; right.normalize()
+    const displacement = new Vector3()
+    if (keys.has('KeyW')) displacement.add(forward)
+    if (keys.has('KeyS')) displacement.sub(forward)
+    if (keys.has('KeyD')) displacement.add(right)
+    if (keys.has('KeyA')) displacement.sub(right)
+    if (displacement.lengthSq() > 0) camera.position.addScaledVector(displacement.normalize(), delta * 3.2)
+  })
+  return null
+}
+
+const Terrain = ({ location }: { location: ObserverLocation }) => {
+  const elevation = useTexture('/textures/aster-gdem-elevation-3600.png')
+  useEffect(() => { elevation.colorSpace = NoColorSpace; elevation.wrapS = RepeatWrapping; elevation.wrapT = RepeatWrapping; elevation.repeat.set(0.025, 0.025); elevation.offset.set((location.longitude + 180) / 360, (90 - location.latitude) / 180); elevation.needsUpdate = true }, [elevation, location])
+  return <mesh position={[0, -1.4, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[160, 160, 160, 160]} /><meshStandardMaterial color="#4b5635" displacementMap={elevation} displacementScale={4.2} displacementBias={-1.4} roughness={0.96} /></mesh>
+}
+
+const WaterSurface = () => {
+  const material = useMemo(() => new ShaderMaterial({ transparent: false, uniforms: { time: { value: 0 } }, vertexShader: 'uniform float time; varying vec3 vNormal; void main(){ vec3 p=position; p.z += sin(p.x*.18+time)*.28 + sin(p.y*.24-time*.7)*.18; vNormal=normal; gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.); }', fragmentShader: 'varying vec3 vNormal; void main(){ float shimmer=pow(max(dot(normalize(vNormal),vec3(.1,1.,.2)),0.),5.); gl_FragColor=vec4(mix(vec3(.015,.09,.15),vec3(.15,.55,.68),shimmer),1.); }' }), [])
+  useFrame(({ clock }) => { material.uniforms.time.value = clock.getElapsedTime() })
+  useEffect(() => () => material.dispose(), [material])
+  return <mesh position={[0, -0.18, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[300, 300, 180, 180]} /><primitive object={material} attach="material" /></mesh>
+}
+
 const ObserverWorld = ({ location, time, coverage, onLand }: { location: ObserverLocation; time: Date; coverage: number; onLand: boolean }) => {
   const sun = useMemo(() => bodyDirection(Astronomy.Body.Sun, location, time), [location, time])
   const moon = useMemo(() => bodyDirection(Astronomy.Body.Moon, location, time), [location, time])
@@ -41,14 +97,11 @@ const ObserverWorld = ({ location, time, coverage, onLand }: { location: Observe
     <ObserverCamera direction={sun} />
     <hemisphereLight intensity={0.18 * (1 - coverage)} color="#8db6e8" groundColor="#10151d" />
     <directionalLight position={sunPosition} intensity={2.5 * (1 - coverage * 0.86)} color="#fff1c6" castShadow />
-    <mesh position={[0, -0.04, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-      <planeGeometry args={[300, 300]} />
-      <meshStandardMaterial color={onLand ? '#27301d' : '#123a54'} roughness={onLand ? 0.94 : 0.32} metalness={onLand ? 0 : 0.18} />
-    </mesh>
+    {onLand ? <Terrain location={location} /> : <WaterSurface />}
     {onLand ? <group position={[0, 0, -4]}><mesh castShadow><boxGeometry args={[2.4, 0.9, 4.2]} /><meshStandardMaterial color="#18212a" roughness={0.8} /></mesh><mesh position={[0, 0.63, -0.2]} castShadow><boxGeometry args={[1.85, 0.5, 1.9]} /><meshStandardMaterial color="#596c78" roughness={0.6} /></mesh></group> : <group position={[0, 0.45, -4]}><mesh><boxGeometry args={[8, 0.3, 16]} /><meshStandardMaterial color="#5b4632" roughness={0.8} /></mesh><mesh position={[-2.7, 0.7, -2]}><boxGeometry args={[0.12, 1.2, 0.12]} /><meshStandardMaterial color="#e4d4ad" /></mesh></group>}
-    <mesh position={sunPosition} raycast={() => undefined}><sphereGeometry args={[0.42, 32, 20]} /><meshBasicMaterial color="#fff1bc" toneMapped={false} /></mesh>
+    <mesh position={sunPosition} raycast={() => undefined}><sphereGeometry args={[0.84, 32, 20]} /><meshBasicMaterial color="#fff1bc" toneMapped={false} /></mesh>
     <pointLight position={sunPosition} intensity={2.2 * (1 - coverage * 0.6)} color="#ffe9ae" distance={180} />
-    <mesh position={moonPosition} raycast={() => undefined}><sphereGeometry args={[0.39, 32, 20]} /><meshStandardMaterial color="#77767a" roughness={1} /></mesh>
+    <mesh position={moonPosition} scale={1 + Math.max(0, 0.36 - moon.y) * 0.9} raycast={() => undefined}><sphereGeometry args={[0.78, 32, 20]} /><meshStandardMaterial color="#77767a" roughness={1} /></mesh>
   </>
 }
 
@@ -71,12 +124,12 @@ export const EclipseTimeJump = ({ eclipse, location, onExit }: EclipseTimeJumpPr
   const environment = onLand === undefined ? 'Reading terrain…' : onLand ? 'Roadside observer' : 'Ship-deck observer'
   return <main className="time-jump" aria-label="Eclipse time jump simulation">
     <Canvas className="time-jump__canvas" shadows camera={{ fov: 58, near: 0.1, far: 300 }}>
-      {onLand === undefined ? null : <ObserverWorld location={location} time={simulatedTime} coverage={coverage} onLand={onLand} />}
+      {onLand === undefined ? null : <><ObserverWorld location={location} time={simulatedTime} coverage={coverage} onLand={onLand} /><FirstPersonMovement /><PointerLockControls /></>}
     </Canvas>
     <section className="time-jump__hud" aria-live="polite">
       <p className="eyebrow">Eclipse time jump · {environment}</p>
       <h1>{coverage > 0 ? `${Math.round(coverage * 100)}% coverage` : 'Awaiting first contact'}</h1>
-      <p>{simulatedTime.toLocaleString()}</p>
+      <p>{simulatedTime.toLocaleString()} · Click the view, then use WASD and mouse-look.</p>
       <div className="time-jump__controls" aria-label="Simulation rate">
         {[1, 30, 300].map((value) => <button type="button" className={rate === value ? 'is-active' : ''} onClick={() => setRate(value)} key={value}>{value}×</button>)}
         <button type="button" onClick={onExit}>Exit simulation</button>
