@@ -1,11 +1,11 @@
 import { OrbitControls, useTexture } from '@react-three/drei'
-import { Canvas, type ThreeEvent, useFrame } from '@react-three/fiber'
-import { Component, type ErrorInfo, type ReactNode, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { AdditiveBlending, BackSide, Group, SRGBColorSpace } from 'three'
+import { Canvas, type ThreeEvent } from '@react-three/fiber'
+import { Component, type ErrorInfo, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
+import { AdditiveBlending, BackSide, SRGBColorSpace, Vector3 } from 'three'
 import type { Coordinates } from '../features/eclipse/coordinates'
 import { configureEarthMapTexture } from './earth-texture'
 import { majorCities } from './geography-data'
-import { coordinatesToSurfacePoint, moonPositionAt, splitLineAtAntimeridian, type LongitudeLatitude } from './geography'
+import { coordinatesToSurfacePoint, splitLineAtAntimeridian, type LongitudeLatitude } from './geography'
 import { coordinatesFromEarthIntersection } from './globe-intersection'
 import { brightStars } from './bright-stars'
 import * as Astronomy from 'astronomy-engine'
@@ -147,32 +147,33 @@ const Earth = ({ onSelectCoordinates, onMapLoaded, onMapError }: Pick<GlobeScene
   )
 }
 
-const useReducedMotion = () => {
-  const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false)
-
-  useEffect(() => {
-    if (!window.matchMedia) return
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const update = () => setReducedMotion(query.matches)
-    query.addEventListener('change', update)
-    return () => query.removeEventListener('change', update)
-  }, [])
-
-  return reducedMotion
+const skyVector = (altitudeDegrees: number, azimuthDegrees: number, radius: number) => {
+  const altitude = altitudeDegrees * Math.PI / 180
+  const azimuth = azimuthDegrees * Math.PI / 180
+  return new Vector3(radius * Math.cos(altitude) * Math.sin(azimuth), radius * Math.sin(altitude), radius * Math.cos(altitude) * Math.cos(azimuth))
 }
 
-const CelestialIllustration = () => {
-  const moon = useRef<Group>(null)
-  const reducedMotion = useReducedMotion()
-
-  useFrame(({ clock }) => {
-    if (!moon.current || reducedMotion) return
-    moon.current.position.copy(moonPositionAt(EARTH_RADIUS, clock.getElapsedTime()))
-  })
+const CelestialIllustration = ({ observer }: { observer?: Coordinates }) => {
+  const [time, setTime] = useState(() => new Date())
+  useEffect(() => {
+    const interval = window.setInterval(() => setTime(new Date()), 60_000)
+    return () => window.clearInterval(interval)
+  }, [])
+  const { sun, moon } = useMemo(() => {
+    const location = observer ?? { latitude: 0, longitude: 0 }
+    const astroObserver = new Astronomy.Observer(location.latitude, location.longitude, 0)
+    const horizontal = (body: Astronomy.Body) => {
+      const equatorial = Astronomy.Equator(body, time, astroObserver, true, true)
+      return Astronomy.Horizon(time, astroObserver, equatorial.ra, equatorial.dec, 'normal')
+    }
+    const sun = horizontal(Astronomy.Body.Sun)
+    const moon = horizontal(Astronomy.Body.Moon)
+    return { sun: skyVector(sun.altitude, sun.azimuth, 14), moon: skyVector(moon.altitude, moon.azimuth, 3.2) }
+  }, [observer, time])
 
   return (
     <>
-      <group position={[-4.6, 3.1, -3.2]} raycast={() => undefined}>
+      <group position={sun.toArray()} raycast={() => undefined}>
         <pointLight intensity={11} distance={0} decay={0} color="#fff0c7" castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
         <mesh>
           <sphereGeometry args={[0.3, 28, 28]} />
@@ -183,7 +184,7 @@ const CelestialIllustration = () => {
           <meshBasicMaterial color="#ffbf5a" transparent opacity={0.08} blending={AdditiveBlending} depthWrite={false} toneMapped={false} />
         </mesh>
       </group>
-      <group ref={moon} position={moonPositionAt(EARTH_RADIUS, 0)} raycast={() => undefined}>
+      <group position={moon.toArray()} raycast={() => undefined}>
         <Moon />
       </group>
     </>
@@ -252,7 +253,7 @@ export const GlobeScene = ({ onSelectCoordinates, selectedCoordinates }: GlobeSc
         <RealStarField observer={selectedCoordinates} />
         <Earth onSelectCoordinates={selectCoordinates} onMapLoaded={() => setMapState('ready')} onMapError={() => setMapState('error')} />
         {selectedCoordinates ? <SelectedLocationPin coordinates={selectedCoordinates} /> : null}
-        <CelestialIllustration />
+        <CelestialIllustration observer={selectedCoordinates} />
         <OrbitControls enableDamping dampingFactor={0.08} enablePan={false} minDistance={3.2} maxDistance={8} />
       </Canvas>
       {mapState === 'loading' ? <p className="globe-scene__status" role="status">Loading Earth map…</p> : null}
