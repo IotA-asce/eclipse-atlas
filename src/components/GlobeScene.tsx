@@ -1,5 +1,5 @@
 import { OrbitControls, useTexture } from '@react-three/drei'
-import { Canvas, type ThreeEvent } from '@react-three/fiber'
+import { Canvas, type ThreeEvent, useThree } from '@react-three/fiber'
 import { Component, type ErrorInfo, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
 import { AdditiveBlending, BackSide, SRGBColorSpace, Vector3 } from 'three'
 import type { Coordinates } from '../features/eclipse/coordinates'
@@ -19,6 +19,7 @@ const EARTH_RADIUS = 1.8
 const MOON_RADIUS = EARTH_RADIUS * 0.2727
 const SUN_RADIUS = EARTH_RADIUS * 109.1
 const EARTH_RADIUS_KM = 6371
+const MEAN_MOON_DISTANCE = EARTH_RADIUS * 60.27
 const EARTH_MAP_URL = '/textures/earth-blue-marble-5400.png'
 const MOON_MAP_URL = '/textures/moon-lroc-color-2k.jpg'
 const BORDER_DATA_URL = '/data/ne_110m_admin_0_boundary_lines_land.geojson'
@@ -246,6 +247,22 @@ const Moon = () => {
   </mesh>
 }
 
+const OrbitalGuides = () => <mesh rotation={[-Math.PI / 2, 0, 0]} raycast={() => undefined} data-testid="moon-orbit-guide">
+  <ringGeometry args={[MEAN_MOON_DISTANCE - 0.08, MEAN_MOON_DISTANCE + 0.08, 192]} />
+  <meshBasicMaterial color="#6e9dc2" transparent opacity={0.34} side={BackSide} depthWrite={false} />
+</mesh>
+
+const CameraPreset = ({ systemView }: { systemView: boolean }) => {
+  const { camera } = useThree()
+  useEffect(() => {
+    if (systemView) camera.position.set(0, MEAN_MOON_DISTANCE * 0.5, MEAN_MOON_DISTANCE * 1.65)
+    else camera.position.set(0, 0.4, 5.5)
+    camera.lookAt(0, 0, 0)
+    camera.updateProjectionMatrix()
+  }, [camera, systemView])
+  return null
+}
+
 /**
  * A navigable Earth whose mesh axes match `pointToCoordinates`: Y is north,
  * X is longitude 0°, and positive Z is east.
@@ -253,6 +270,7 @@ const Moon = () => {
 export const GlobeScene = ({ onSelectCoordinates, selectedCoordinates }: GlobeSceneProps) => {
   const [selectedLabel, setSelectedLabel] = useState('No location selected yet.')
   const [mapState, setMapState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [systemView, setSystemView] = useState(false)
 
   const selectCoordinates = (coordinates: Coordinates) => {
     setSelectedLabel(
@@ -267,9 +285,11 @@ export const GlobeScene = ({ onSelectCoordinates, selectedCoordinates }: GlobeSc
         <color attach="background" args={['#00030a']} />
         <ambientLight intensity={0.035} />
         <RealStarField observer={selectedCoordinates} />
+        <CameraPreset systemView={systemView} />
         <Earth onSelectCoordinates={selectCoordinates} onMapLoaded={() => setMapState('ready')} onMapError={() => setMapState('error')} />
         {selectedCoordinates ? <SelectedLocationPin coordinates={selectedCoordinates} /> : null}
         <CelestialIllustration observer={selectedCoordinates} />
+        <OrbitalGuides />
         <OrbitControls enableDamping dampingFactor={0.08} enablePan={false} minDistance={3.2} maxDistance={EARTH_RADIUS * 100} />
       </Canvas>
       {mapState === 'loading' ? <p className="globe-scene__status" role="status">Loading Earth map…</p> : null}
@@ -278,6 +298,9 @@ export const GlobeScene = ({ onSelectCoordinates, selectedCoordinates }: GlobeSc
         {selectedLabel}
       </output>
       <p className="globe-scene__hint">Drag to orbit · scroll to zoom · click Earth to select a location</p>
+      <button className="orbit-view-toggle" type="button" onClick={() => setSystemView((current) => !current)}>
+        {systemView ? 'Return to Earth view' : 'Frame Moon orbit'}
+      </button>
     </section>
   )
 }

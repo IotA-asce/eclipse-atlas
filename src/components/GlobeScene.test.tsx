@@ -8,6 +8,7 @@ import { GlobeScene } from './GlobeScene'
 vi.mock('@react-three/fiber', () => ({
   Canvas: ({ children }: { children: React.ReactNode }) => <div data-testid="globe-canvas">{children}</div>,
   useFrame: () => undefined,
+  useThree: () => ({ camera: { position: { set: vi.fn() }, lookAt: vi.fn(), updateProjectionMatrix: vi.fn() } }),
 }))
 
 vi.mock('@react-three/drei', () => ({
