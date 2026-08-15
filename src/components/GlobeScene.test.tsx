@@ -45,8 +45,8 @@ it('does not render city labels until the camera is close enough', () => {
   expect(screen.queryByTestId('major-city-labels')).not.toBeInTheDocument()
 })
 
-it('renders an evolving procedural atmosphere instead of loading a cloud image', () => {
+it('renders a raymarched cloud volume from the weather simulation', () => {
   render(<GlobeScene onSelectCoordinates={vi.fn()} />)
 
-  expect(screen.getByTestId('simulated-cloud-layer')).toBeInTheDocument()
+  expect(screen.getByTestId('volumetric-cloud-layer')).toBeInTheDocument()
 })
