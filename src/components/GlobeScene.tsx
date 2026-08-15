@@ -157,36 +157,43 @@ const Earth = ({ onSelectCoordinates, onMapLoaded, onMapError }: Pick<GlobeScene
   )
 }
 
-const skyVector = (altitudeDegrees: number, azimuthDegrees: number, radius: number) => {
-  const altitude = altitudeDegrees * Math.PI / 180
-  const azimuth = azimuthDegrees * Math.PI / 180
-  return new Vector3(radius * Math.cos(altitude) * Math.sin(azimuth), radius * Math.sin(altitude), radius * Math.cos(altitude) * Math.cos(azimuth))
+const geocentricSceneVector = (body: Astronomy.Body, time: Date) => {
+  const vector = Astronomy.GeoVector(body, time, true)
+  const scale = EARTH_RADIUS * Astronomy.KM_PER_AU / EARTH_RADIUS_KM
+  return new Vector3(vector.x, vector.z, vector.y).multiplyScalar(scale)
 }
 
-const CelestialIllustration = ({ observer }: { observer?: Coordinates }) => {
+const LunarOrbitPath = ({ time }: { time: Date }) => {
+  const positions = useMemo(() => {
+    const values: number[] = []
+    let previous: Vector3 | undefined
+    for (let hours = -336; hours <= 336; hours += 6) {
+      const current = geocentricSceneVector(Astronomy.Body.Moon, new Date(time.getTime() + hours * 3_600_000))
+      if (previous) values.push(...previous.toArray(), ...current.toArray())
+      previous = current
+    }
+    return new Float32Array(values)
+  }, [time])
+  return <lineSegments raycast={() => undefined} data-testid="moon-orbit-guide">
+    <bufferGeometry><bufferAttribute attach="attributes-position" args={[positions, 3]} /></bufferGeometry>
+    <lineBasicMaterial color="#6e9dc2" transparent opacity={0.55} depthWrite={false} />
+  </lineSegments>
+}
+
+const CelestialIllustration = () => {
   const [time, setTime] = useState(() => new Date())
   useEffect(() => {
     const interval = window.setInterval(() => setTime(new Date()), 60_000)
     return () => window.clearInterval(interval)
   }, [])
-  const { sun, moon } = useMemo(() => {
-    const location = observer ?? { latitude: 0, longitude: 0 }
-    const astroObserver = new Astronomy.Observer(location.latitude, location.longitude, 0)
-    const horizontal = (body: Astronomy.Body) => {
-      const equatorial = Astronomy.Equator(body, time, astroObserver, true, true)
-      const horizon = Astronomy.Horizon(time, astroObserver, equatorial.ra, equatorial.dec, 'normal')
-      return { horizon, distanceEarthRadii: equatorial.dist * Astronomy.KM_PER_AU / EARTH_RADIUS_KM }
-    }
-    const sun = horizontal(Astronomy.Body.Sun)
-    const moon = horizontal(Astronomy.Body.Moon)
-    return {
-      sun: skyVector(sun.horizon.altitude, sun.horizon.azimuth, sun.distanceEarthRadii * EARTH_RADIUS),
-      moon: skyVector(moon.horizon.altitude, moon.horizon.azimuth, moon.distanceEarthRadii * EARTH_RADIUS),
-    }
-  }, [observer, time])
+  const { sun, moon } = useMemo(() => ({
+    sun: geocentricSceneVector(Astronomy.Body.Sun, time),
+    moon: geocentricSceneVector(Astronomy.Body.Moon, time),
+  }), [time])
 
   return (
     <>
+      <LunarOrbitPath time={time} />
       <group position={sun.toArray()} raycast={() => undefined}>
         <directionalLight intensity={2.6} color="#fff0c7" castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
         <mesh>
@@ -255,11 +262,6 @@ const Moon = () => {
   </mesh>
 }
 
-const OrbitalGuides = () => <mesh rotation={[-Math.PI / 2, 0, 0]} raycast={() => undefined} data-testid="moon-orbit-guide">
-  <ringGeometry args={[MEAN_MOON_DISTANCE - 0.08, MEAN_MOON_DISTANCE + 0.08, 192]} />
-  <meshBasicMaterial color="#6e9dc2" transparent opacity={0.34} side={BackSide} depthWrite={false} />
-</mesh>
-
 const CameraPreset = ({ systemView }: { systemView: boolean }) => {
   const { camera } = useThree()
   useEffect(() => {
@@ -296,8 +298,7 @@ export const GlobeScene = ({ onSelectCoordinates, selectedCoordinates }: GlobeSc
         <CameraPreset systemView={systemView} />
         <Earth onSelectCoordinates={selectCoordinates} onMapLoaded={() => setMapState('ready')} onMapError={() => setMapState('error')} />
         {selectedCoordinates ? <SelectedLocationPin coordinates={selectedCoordinates} /> : null}
-        <CelestialIllustration observer={selectedCoordinates} />
-        <OrbitalGuides />
+        <CelestialIllustration />
         <OrbitControls enableDamping dampingFactor={0.08} enablePan={false} minDistance={3.2} maxDistance={EARTH_RADIUS * 100} />
       </Canvas>
       {mapState === 'loading' ? <p className="globe-scene__status" role="status">Loading Earth map…</p> : null}
