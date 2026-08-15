@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { EclipseResultCard } from '../components/EclipseResultCard'
 import { GlobeScene } from '../components/GlobeScene'
+import { EclipseTimeJump } from '../components/EclipseTimeJump'
 import { findNextLocalSolarEclipse } from '../features/eclipse/eclipse-service'
 import type { LocalSolarEclipse, ObserverLocation } from '../features/eclipse/types'
 
@@ -8,10 +9,12 @@ function App() {
   const [location, setLocation] = useState<ObserverLocation>()
   const [eclipse, setEclipse] = useState<LocalSolarEclipse>()
   const [calculationError, setCalculationError] = useState(false)
+  const [timeJump, setTimeJump] = useState(false)
 
   const calculateForLocation = useCallback((coordinates: ObserverLocation) => {
     try {
       setCalculationError(false)
+      setTimeJump(false)
       setEclipse(findNextLocalSolarEclipse(coordinates))
     } catch {
       setEclipse(undefined)
@@ -24,6 +27,8 @@ function App() {
     calculateForLocation(coordinates)
   }
 
+  if (timeJump && eclipse && location) return <EclipseTimeJump eclipse={eclipse} location={location} onExit={() => setTimeJump(false)} />
+
   return (
     <main className="atlas-shell">
       <header className="atlas-intro">
@@ -35,7 +40,10 @@ function App() {
         <GlobeScene onSelectCoordinates={selectLocation} selectedCoordinates={location} />
         <aside className="atlas-results" aria-live="polite">
           {eclipse && location ? (
-            <EclipseResultCard eclipse={eclipse} location={location} />
+            <>
+              <EclipseResultCard eclipse={eclipse} location={location} />
+              <button className="time-jump-button" type="button" onClick={() => setTimeJump(true)}>Jump to eclipse</button>
+            </>
           ) : calculationError && location ? (
             <section className="selection-prompt" aria-labelledby="calculation-error-heading" role="alert">
               <p className="eyebrow">Calculation interrupted</p>
