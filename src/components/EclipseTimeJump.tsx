@@ -2,14 +2,13 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { PointerLockControls, useTexture } from '@react-three/drei'
 import { type MutableRefObject, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import * as Astronomy from 'astronomy-engine'
-import { BackSide, Color, type Camera, type Group, type Object3D, NoColorSpace, Raycaster, RepeatWrapping, ShaderMaterial, Vector3, Vector4 } from 'three'
-import { confineToDeck } from '../features/time-jump/deck-collision'
-import { clipMovementAtContact } from '../features/time-jump/mesh-contact'
+import { BackSide, Color, type Camera, type Group, type Object3D, NoColorSpace, RepeatWrapping, ShaderMaterial, Vector3, Vector4 } from 'three'
 import { isLocationOnLand, type LandCollection } from '../features/time-jump/land-classifier'
 import { createEclipseTimeline, eclipseCoverageAt, timelineDate } from '../features/time-jump/timeline'
 import type { LocalSolarEclipse, ObserverLocation } from '../features/eclipse/types'
 import { OceanVessel } from './OceanVessel'
 import { vesselSpecs, vesselTypes, type VesselType } from '../features/time-jump/vessel-types'
+import { restingNavigation, stepVesselNavigation, type VesselNavigation } from '../features/time-jump/vessel-navigation'
 
 interface EclipseTimeJumpProps { eclipse: LocalSolarEclipse; location: ObserverLocation; onExit: () => void }
 
@@ -33,20 +32,6 @@ const ObserverCamera = ({ direction }: { direction: Vector3 }) => {
     camera.position.set(0, 1.65, 0)
     camera.lookAt(initialDirection.current.clone().multiplyScalar(25).add(new Vector3(0, 1.65, 0)))
   }, [camera])
-  return null
-}
-
-const DeckCamera = ({ vesselRef, type }: { vesselRef: MutableRefObject<Group | null>; type: VesselType }) => {
-  const { camera } = useThree()
-  const initialized = useRef(false)
-  useFrame(() => {
-    if (initialized.current || !vesselRef.current) return
-    const deck = vesselSpecs[type].deck
-    vesselRef.current.updateMatrixWorld(true)
-    camera.position.set(0, deck.deckHeight + 1.65, deck.halfLength * 0.5)
-    vesselRef.current.localToWorld(camera.position)
-    initialized.current = true
-  })
   return null
 }
 
@@ -91,65 +76,37 @@ const MovementFrame = ({ camera, held }: { camera: Camera; held: MutableRefObjec
   return null
 }
 
-const ShipDeckMovement = ({ type, vesselRef, collisionRef }: { type: VesselType; vesselRef: MutableRefObject<Group | null>; collisionRef: MutableRefObject<Object3D | null> }) => {
-  const { camera, gl } = useThree()
+const ShipHelm = ({ vesselRef, navigationRef }: { vesselRef: MutableRefObject<Group | null>; navigationRef: MutableRefObject<VesselNavigation> }) => {
+  const { camera } = useThree()
   const held = useRef(new Set<string>())
-  const previousHullPosition = useRef<Vector3 | null>(null)
-  const forward = useMemo(() => new Vector3(), [])
-  const right = useMemo(() => new Vector3(), [])
-  const displacement = useMemo(() => new Vector3(), [])
-  const local = useMemo(() => new Vector3(), [])
-  const movementStart = useMemo(() => new Vector3(), [])
-  const movementDirection = useMemo(() => new Vector3(), [])
-  const contactRay = useMemo(() => new Raycaster(), [])
+  const chasePosition = useMemo(() => new Vector3(), [])
+  const chaseTarget = useMemo(() => new Vector3(), [])
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
-      if (document.pointerLockElement !== gl.domElement) return
-      if (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) event.preventDefault()
-      held.current.add(event.code)
+      if (!['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) return
+      event.preventDefault(); held.current.add(event.code)
     }
     const up = (event: KeyboardEvent) => held.current.delete(event.code)
     const clear = () => held.current.clear()
     window.addEventListener('keydown', down); window.addEventListener('keyup', up); window.addEventListener('blur', clear)
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); window.removeEventListener('blur', clear) }
-  }, [gl])
+  }, [])
+  useFrame((_, delta) => {
+    const forward = held.current.has('KeyW') || held.current.has('ArrowUp')
+    const reverse = held.current.has('KeyS') || held.current.has('ArrowDown')
+    const left = held.current.has('KeyA') || held.current.has('ArrowLeft')
+    const right = held.current.has('KeyD') || held.current.has('ArrowRight')
+    navigationRef.current = stepVesselNavigation(navigationRef.current, { throttle: Number(forward) - Number(reverse), rudder: Number(left) - Number(right) }, delta)
+  }, -2)
   useFrame((_, delta) => {
     const hull = vesselRef.current
     if (!hull) return
     hull.updateMatrixWorld(true)
-    const hullPosition = hull.getWorldPosition(new Vector3())
-    if (previousHullPosition.current) camera.position.add(hullPosition.clone().sub(previousHullPosition.current))
-    previousHullPosition.current = hullPosition
-    forward.set(0, 0, -1).applyQuaternion(camera.quaternion); forward.y = 0; forward.normalize()
-    right.set(1, 0, 0).applyQuaternion(camera.quaternion); right.y = 0; right.normalize()
-    displacement.set(0, 0, 0)
-    if (held.current.has('KeyW')) displacement.add(forward)
-    if (held.current.has('KeyS')) displacement.sub(forward)
-    if (held.current.has('KeyD')) displacement.add(right)
-    if (held.current.has('KeyA')) displacement.sub(right)
-    movementStart.copy(camera.position)
-    if (displacement.lengthSq() > 0) {
-      const travel = Math.min(delta, 0.05) * 2.6
-      camera.position.addScaledVector(displacement.normalize(), travel)
-      const travelVector = camera.position.clone().sub(movementStart)
-      const travelDistance = travelVector.length()
-      if (travelDistance > 0 && collisionRef.current) {
-        movementDirection.copy(travelVector).normalize()
-        contactRay.set(movementStart, movementDirection)
-        const hit = contactRay.intersectObject(collisionRef.current, true)[0]
-        if (hit && hit.distance < travelDistance) {
-          const clipped = clipMovementAtContact({ x: movementStart.x, z: movementStart.z }, { x: camera.position.x, z: camera.position.z }, hit.distance)
-          camera.position.set(clipped.x, camera.position.y, clipped.z)
-        }
-      }
-    }
-    local.copy(camera.position); hull.worldToLocal(local)
-    const spec = vesselSpecs[type]
-    const confined = confineToDeck({ x: local.x, z: local.z }, spec.deck, spec.obstacles)
-    local.set(confined.x, spec.deck.deckHeight + 1.65, confined.z)
-    hull.localToWorld(local)
-    camera.position.copy(local)
-  })
+    chasePosition.set(0, 7.8, 15.5); hull.localToWorld(chasePosition)
+    chaseTarget.set(0, 2.1, -3.5); hull.localToWorld(chaseTarget)
+    camera.position.lerp(chasePosition, 1 - Math.exp(-delta * 4.5))
+    camera.lookAt(chaseTarget)
+  }, 1)
   return null
 }
 
@@ -184,7 +141,7 @@ const SkyDome = ({ sun, coverage }: { sun: Vector3; coverage: number }) => {
   return <mesh><sphereGeometry args={[220, 48, 32]} /><primitive object={material} attach="material" /></mesh>
 }
 
-const ObserverWorld = ({ location, time, coverage, onLand, vessel, vesselRef, collisionRef }: { location: ObserverLocation; time: Date; coverage: number; onLand: boolean; vessel: VesselType; vesselRef: MutableRefObject<Group | null>; collisionRef: MutableRefObject<Object3D | null> }) => {
+const ObserverWorld = ({ location, time, coverage, onLand, vessel, vesselRef, collisionRef, navigationRef }: { location: ObserverLocation; time: Date; coverage: number; onLand: boolean; vessel: VesselType; vesselRef: MutableRefObject<Group | null>; collisionRef: MutableRefObject<Object3D | null>; navigationRef: MutableRefObject<VesselNavigation> }) => {
   const sun = useMemo(() => bodyDirection(Astronomy.Body.Sun, location, time), [location, time])
   const moon = useMemo(() => bodyDirection(Astronomy.Body.Moon, location, time), [location, time])
   const sky = new Color().setHSL(0.59, 0.45, Math.max(0.025, 0.24 * (1 - coverage * 0.9)))
@@ -197,7 +154,7 @@ const ObserverWorld = ({ location, time, coverage, onLand, vessel, vesselRef, co
     <hemisphereLight intensity={0.18 * (1 - coverage)} color="#8db6e8" groundColor="#10151d" />
     <directionalLight position={sunPosition} intensity={2.5 * (1 - coverage * 0.86)} color="#fff1c6" castShadow />
     {onLand ? <Terrain location={location} /> : <WaterSurface sun={sun} coverage={coverage} vessel={vessel} vesselRef={vesselRef} />}
-    {onLand ? <group position={[0, 0, -4]}><mesh castShadow><boxGeometry args={[2.4, 0.9, 4.2]} /><meshStandardMaterial color="#18212a" roughness={0.8} /></mesh><mesh position={[0, 0.63, -0.2]} castShadow><boxGeometry args={[1.85, 0.5, 1.9]} /><meshStandardMaterial color="#596c78" roughness={0.6} /></mesh></group> : <><OceanVessel type={vessel} vesselRef={vesselRef} collisionRef={collisionRef} /><DeckCamera key={vessel} type={vessel} vesselRef={vesselRef} /></>}
+    {onLand ? <group position={[0, 0, -4]}><mesh castShadow><boxGeometry args={[2.4, 0.9, 4.2]} /><meshStandardMaterial color="#18212a" roughness={0.8} /></mesh><mesh position={[0, 0.63, -0.2]} castShadow><boxGeometry args={[1.85, 0.5, 1.9]} /><meshStandardMaterial color="#596c78" roughness={0.6} /></mesh></group> : <OceanVessel type={vessel} vesselRef={vesselRef} collisionRef={collisionRef} navigationRef={navigationRef} />}
     <mesh position={sunPosition} raycast={() => undefined}><sphereGeometry args={[0.84, 32, 20]} /><meshBasicMaterial color="#fff1bc" toneMapped={false} /></mesh>
     <pointLight position={sunPosition} intensity={2.2 * (1 - coverage * 0.6)} color="#ffe9ae" distance={180} />
     <mesh position={moonPosition} scale={1 + Math.max(0, 0.36 - moon.y) * 0.9} raycast={() => undefined}><sphereGeometry args={[0.78, 32, 20]} /><meshStandardMaterial color="#77767a" roughness={1} /></mesh>
@@ -212,6 +169,7 @@ export const EclipseTimeJump = ({ eclipse, location, onExit }: EclipseTimeJumpPr
   const [vesselIndex, setVesselIndex] = useState(0)
   const vesselRef = useRef<Group | null>(null)
   const collisionRef = useRef<Object3D | null>(null)
+  const navigationRef = useRef<VesselNavigation>(restingNavigation())
   const vessel = vesselTypes[vesselIndex]
   useEffect(() => {
     let active = true
@@ -227,21 +185,22 @@ export const EclipseTimeJump = ({ eclipse, location, onExit }: EclipseTimeJumpPr
     window.addEventListener('keydown', cycleVessel)
     return () => window.removeEventListener('keydown', cycleVessel)
   }, [onLand])
+  useEffect(() => { navigationRef.current = restingNavigation() }, [vessel])
   useEffect(() => {
     const interval = window.setInterval(() => setElapsed((value) => Math.min(timeline.durationSeconds, value + rate * 0.1)), 100)
     return () => window.clearInterval(interval)
   }, [rate, timeline.durationSeconds])
   const simulatedTime = timelineDate(timeline, elapsed)
   const coverage = eclipseCoverageAt(eclipse, simulatedTime)
-  const environment = onLand === undefined ? 'Reading terrain…' : onLand ? 'Roadside observer' : 'Ship-deck observer'
+  const environment = onLand === undefined ? 'Reading terrain…' : onLand ? 'Roadside observer' : 'Vessel command view'
   return <main className="time-jump" aria-label="Eclipse time jump simulation">
     <Canvas className="time-jump__canvas" shadows="basic" camera={{ fov: 58, near: 0.1, far: 300 }}>
-      {onLand === undefined ? null : <Suspense fallback={null}><ObserverWorld location={location} time={simulatedTime} coverage={coverage} onLand={onLand} vessel={vessel} vesselRef={vesselRef} collisionRef={collisionRef} />{onLand ? <FirstPersonMovement /> : <ShipDeckMovement type={vessel} vesselRef={vesselRef} collisionRef={collisionRef} />}<PointerLockControls /></Suspense>}
+      {onLand === undefined ? null : <Suspense fallback={null}><ObserverWorld location={location} time={simulatedTime} coverage={coverage} onLand={onLand} vessel={vessel} vesselRef={vesselRef} collisionRef={collisionRef} navigationRef={navigationRef} />{onLand ? <><FirstPersonMovement /><PointerLockControls /></> : <ShipHelm vesselRef={vesselRef} navigationRef={navigationRef} />}</Suspense>}
     </Canvas>
     <section className="time-jump__hud" aria-live="polite">
       <p className="eyebrow">Eclipse time jump · {environment}</p>
       <h1>{coverage > 0 ? `${Math.round(coverage * 100)}% coverage` : 'Awaiting first contact'}</h1>
-      <p>{simulatedTime.toLocaleString()} · Click the view, then use WASD and mouse-look.</p>
+      <p>{simulatedTime.toLocaleString()} · {onLand ? 'Click the view, then use WASD and mouse-look.' : 'W/S throttle · A/D steer · camera follows the vessel.'}</p>
       <div className="time-jump__controls" aria-label="Simulation rate">
         {[1, 30, 300].map((value) => <button type="button" className={rate === value ? 'is-active' : ''} onClick={() => setRate(value)} key={value}>{value}×</button>)}
         {onLand === false ? <button type="button" onClick={() => setVesselIndex((index) => (index + 1) % vesselTypes.length)}>Z · {vessel}</button> : null}
