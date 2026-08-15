@@ -16,11 +16,10 @@ interface GlobeSceneProps {
 }
 
 const EARTH_RADIUS = 1.8
-// Mean physical ratios relative to Earth's radius. Positions are topocentric directions.
+// Physical radii relative to Earth's radius. Distances are calculated live from Astronomy Engine.
 const MOON_RADIUS = EARTH_RADIUS * 0.2727
-const MOON_DISTANCE = EARTH_RADIUS * 60.27
 const SUN_RADIUS = EARTH_RADIUS * 109.1
-const SUN_DISTANCE = EARTH_RADIUS * 23_455
+const EARTH_RADIUS_KM = 6371
 const EARTH_MAP_URL = '/textures/earth-blue-marble-5400.png'
 const MOON_MAP_URL = '/textures/moon-lroc-color-2k.jpg'
 const BORDER_DATA_URL = '/data/ne_110m_admin_0_boundary_lines_land.geojson'
@@ -169,13 +168,14 @@ const CelestialIllustration = ({ observer }: { observer?: Coordinates }) => {
     const astroObserver = new Astronomy.Observer(location.latitude, location.longitude, 0)
     const horizontal = (body: Astronomy.Body) => {
       const equatorial = Astronomy.Equator(body, time, astroObserver, true, true)
-      return Astronomy.Horizon(time, astroObserver, equatorial.ra, equatorial.dec, 'normal')
+      const horizon = Astronomy.Horizon(time, astroObserver, equatorial.ra, equatorial.dec, 'normal')
+      return { horizon, distanceEarthRadii: equatorial.dist * Astronomy.KM_PER_AU / EARTH_RADIUS_KM }
     }
     const sun = horizontal(Astronomy.Body.Sun)
     const moon = horizontal(Astronomy.Body.Moon)
     return {
-      sun: skyVector(sun.altitude, sun.azimuth, SUN_DISTANCE),
-      moon: skyVector(moon.altitude, moon.azimuth, MOON_DISTANCE),
+      sun: skyVector(sun.horizon.altitude, sun.horizon.azimuth, sun.distanceEarthRadii * EARTH_RADIUS),
+      moon: skyVector(moon.horizon.altitude, moon.horizon.azimuth, moon.distanceEarthRadii * EARTH_RADIUS),
     }
   }, [observer, time])
 
@@ -215,7 +215,7 @@ const RealStarField = ({ observer }: { observer?: Coordinates }) => {
       const altitude = horizontal.altitude * Math.PI / 180
       const azimuth = horizontal.azimuth * Math.PI / 180
       // Stars are effectively at infinity; this shell remains beyond the Moon while preserving their directions.
-      const radius = MOON_DISTANCE * 2
+      const radius = EARTH_RADIUS * 200
       values.push(radius * Math.cos(altitude) * Math.sin(azimuth), radius * Math.sin(altitude), radius * Math.cos(altitude) * Math.cos(azimuth))
     }
     return new Float32Array(values)
@@ -256,14 +256,14 @@ export const GlobeScene = ({ onSelectCoordinates, selectedCoordinates }: GlobeSc
 
   return (
     <section className="globe-scene" aria-label="Interactive Earth globe">
-      <Canvas camera={{ position: [0, 0.4, 5.5], fov: 42, far: SUN_DISTANCE * 1.1 }} dpr={[1, 1.75]} shadows>
+      <Canvas camera={{ position: [0, 0.4, 5.5], fov: 42, far: EARTH_RADIUS * 30_000 }} dpr={[1, 1.75]} shadows>
         <color attach="background" args={['#00030a']} />
         <ambientLight intensity={0.035} />
         <RealStarField observer={selectedCoordinates} />
         <Earth onSelectCoordinates={selectCoordinates} onMapLoaded={() => setMapState('ready')} onMapError={() => setMapState('error')} />
         {selectedCoordinates ? <SelectedLocationPin coordinates={selectedCoordinates} /> : null}
         <CelestialIllustration observer={selectedCoordinates} />
-        <OrbitControls enableDamping dampingFactor={0.08} enablePan={false} minDistance={3.2} maxDistance={MOON_DISTANCE * 1.5} />
+        <OrbitControls enableDamping dampingFactor={0.08} enablePan={false} minDistance={3.2} maxDistance={EARTH_RADIUS * 100} />
       </Canvas>
       {mapState === 'loading' ? <p className="globe-scene__status" role="status">Loading Earth map…</p> : null}
       {mapState === 'error' ? <p className="globe-scene__status globe-scene__status--error" role="status">Earth map unavailable. Selecting still works.</p> : null}
