@@ -6,6 +6,8 @@ import { Color, type Camera, NoColorSpace, RepeatWrapping, ShaderMaterial, Vecto
 import { isLocationOnLand, type LandCollection } from '../features/time-jump/land-classifier'
 import { createEclipseTimeline, eclipseCoverageAt, timelineDate } from '../features/time-jump/timeline'
 import type { LocalSolarEclipse, ObserverLocation } from '../features/eclipse/types'
+import { OceanVessel } from './OceanVessel'
+import { vesselTypes, type VesselType } from '../features/time-jump/vessel-types'
 
 interface EclipseTimeJumpProps { eclipse: LocalSolarEclipse; location: ObserverLocation; onExit: () => void }
 
@@ -86,7 +88,7 @@ const WaterSurface = () => {
   return <mesh position={[0, -0.18, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[300, 300, 180, 180]} /><primitive object={material} attach="material" /></mesh>
 }
 
-const ObserverWorld = ({ location, time, coverage, onLand }: { location: ObserverLocation; time: Date; coverage: number; onLand: boolean }) => {
+const ObserverWorld = ({ location, time, coverage, onLand, vessel }: { location: ObserverLocation; time: Date; coverage: number; onLand: boolean; vessel: VesselType }) => {
   const sun = useMemo(() => bodyDirection(Astronomy.Body.Sun, location, time), [location, time])
   const moon = useMemo(() => bodyDirection(Astronomy.Body.Moon, location, time), [location, time])
   const sky = new Color().setHSL(0.59, 0.45, Math.max(0.025, 0.24 * (1 - coverage * 0.9)))
@@ -98,7 +100,7 @@ const ObserverWorld = ({ location, time, coverage, onLand }: { location: Observe
     <hemisphereLight intensity={0.18 * (1 - coverage)} color="#8db6e8" groundColor="#10151d" />
     <directionalLight position={sunPosition} intensity={2.5 * (1 - coverage * 0.86)} color="#fff1c6" castShadow />
     {onLand ? <Terrain location={location} /> : <WaterSurface />}
-    {onLand ? <group position={[0, 0, -4]}><mesh castShadow><boxGeometry args={[2.4, 0.9, 4.2]} /><meshStandardMaterial color="#18212a" roughness={0.8} /></mesh><mesh position={[0, 0.63, -0.2]} castShadow><boxGeometry args={[1.85, 0.5, 1.9]} /><meshStandardMaterial color="#596c78" roughness={0.6} /></mesh></group> : <group position={[0, 0.45, -4]}><mesh><boxGeometry args={[8, 0.3, 16]} /><meshStandardMaterial color="#5b4632" roughness={0.8} /></mesh><mesh position={[-2.7, 0.7, -2]}><boxGeometry args={[0.12, 1.2, 0.12]} /><meshStandardMaterial color="#e4d4ad" /></mesh></group>}
+    {onLand ? <group position={[0, 0, -4]}><mesh castShadow><boxGeometry args={[2.4, 0.9, 4.2]} /><meshStandardMaterial color="#18212a" roughness={0.8} /></mesh><mesh position={[0, 0.63, -0.2]} castShadow><boxGeometry args={[1.85, 0.5, 1.9]} /><meshStandardMaterial color="#596c78" roughness={0.6} /></mesh></group> : <OceanVessel type={vessel} />}
     <mesh position={sunPosition} raycast={() => undefined}><sphereGeometry args={[0.84, 32, 20]} /><meshBasicMaterial color="#fff1bc" toneMapped={false} /></mesh>
     <pointLight position={sunPosition} intensity={2.2 * (1 - coverage * 0.6)} color="#ffe9ae" distance={180} />
     <mesh position={moonPosition} scale={1 + Math.max(0, 0.36 - moon.y) * 0.9} raycast={() => undefined}><sphereGeometry args={[0.78, 32, 20]} /><meshStandardMaterial color="#77767a" roughness={1} /></mesh>
@@ -110,11 +112,22 @@ export const EclipseTimeJump = ({ eclipse, location, onExit }: EclipseTimeJumpPr
   const [elapsed, setElapsed] = useState(0)
   const [rate, setRate] = useState(1)
   const [onLand, setOnLand] = useState<boolean | undefined>()
+  const [vesselIndex, setVesselIndex] = useState(0)
+  const vessel = vesselTypes[vesselIndex]
   useEffect(() => {
     let active = true
     void fetch('/data/ne_110m_land.geojson').then((response) => response.ok ? response.json() as Promise<LandCollection> : Promise.reject()).then((land) => { if (active) setOnLand(isLocationOnLand(location, land)) }).catch(() => { if (active) setOnLand(false) })
     return () => { active = false }
   }, [location])
+  useEffect(() => {
+    const cycleVessel = (event: KeyboardEvent) => {
+      if (event.code !== 'KeyZ' || onLand !== false || event.repeat) return
+      event.preventDefault()
+      setVesselIndex((index) => (index + 1) % vesselTypes.length)
+    }
+    window.addEventListener('keydown', cycleVessel)
+    return () => window.removeEventListener('keydown', cycleVessel)
+  }, [onLand])
   useEffect(() => {
     const interval = window.setInterval(() => setElapsed((value) => Math.min(timeline.durationSeconds, value + rate * 0.1)), 100)
     return () => window.clearInterval(interval)
@@ -124,7 +137,7 @@ export const EclipseTimeJump = ({ eclipse, location, onExit }: EclipseTimeJumpPr
   const environment = onLand === undefined ? 'Reading terrain…' : onLand ? 'Roadside observer' : 'Ship-deck observer'
   return <main className="time-jump" aria-label="Eclipse time jump simulation">
     <Canvas className="time-jump__canvas" shadows camera={{ fov: 58, near: 0.1, far: 300 }}>
-      {onLand === undefined ? null : <><ObserverWorld location={location} time={simulatedTime} coverage={coverage} onLand={onLand} /><FirstPersonMovement /><PointerLockControls /></>}
+      {onLand === undefined ? null : <><ObserverWorld location={location} time={simulatedTime} coverage={coverage} onLand={onLand} vessel={vessel} /><FirstPersonMovement /><PointerLockControls /></>}
     </Canvas>
     <section className="time-jump__hud" aria-live="polite">
       <p className="eyebrow">Eclipse time jump · {environment}</p>
@@ -132,6 +145,7 @@ export const EclipseTimeJump = ({ eclipse, location, onExit }: EclipseTimeJumpPr
       <p>{simulatedTime.toLocaleString()} · Click the view, then use WASD and mouse-look.</p>
       <div className="time-jump__controls" aria-label="Simulation rate">
         {[1, 30, 300].map((value) => <button type="button" className={rate === value ? 'is-active' : ''} onClick={() => setRate(value)} key={value}>{value}×</button>)}
+        {onLand === false ? <button type="button" onClick={() => setVesselIndex((index) => (index + 1) % vesselTypes.length)}>Z · {vessel}</button> : null}
         <button type="button" onClick={onExit}>Exit simulation</button>
       </div>
     </section>
