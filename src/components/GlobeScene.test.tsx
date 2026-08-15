@@ -44,3 +44,9 @@ it('does not render city labels until the camera is close enough', () => {
 
   expect(screen.queryByTestId('major-city-labels')).not.toBeInTheDocument()
 })
+
+it('renders an evolving procedural atmosphere instead of loading a cloud image', () => {
+  render(<GlobeScene onSelectCoordinates={vi.fn()} />)
+
+  expect(screen.getByTestId('simulated-cloud-layer')).toBeInTheDocument()
+})
