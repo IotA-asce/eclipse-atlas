@@ -7,5 +7,6 @@ it('defines a model and walkable collision deck for every vessel', () => {
     expect(spec.model).toMatch(/^\/models\/kenney-watercraft\/.*\.glb$/)
     expect(spec.deck.halfWidth).toBeGreaterThan(0)
     expect(spec.deck.halfLength).toBeGreaterThan(0)
+    expect(spec.waterMaskPadding).toBeGreaterThan(0)
   })
 })
