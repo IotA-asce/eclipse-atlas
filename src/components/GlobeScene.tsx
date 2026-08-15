@@ -219,7 +219,6 @@ const RealStarField = ({ observer }: { observer?: Coordinates }) => {
     const values: number[] = []
     for (const [ra, dec] of catalog) {
       const horizontal = Astronomy.Horizon(time, astroObserver, ra, dec, 'normal')
-      if (horizontal.altitude <= 0) continue
       const altitude = horizontal.altitude * Math.PI / 180
       const azimuth = horizontal.azimuth * Math.PI / 180
       // Stars are effectively at infinity; this shell remains beyond the Moon while preserving their directions.
