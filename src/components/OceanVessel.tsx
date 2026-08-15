@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { type MutableRefObject, useMemo, useRef } from 'react'
 import { type Group, type Object3D } from 'three'
 import { restingBuoyancyState, stepBuoyancy } from '../features/time-jump/buoyancy'
+import type { VesselNavigation } from '../features/time-jump/vessel-navigation'
 import { vesselSpecs, type VesselType } from '../features/time-jump/vessel-types'
 
 const VesselAsset = ({ type }: { type: VesselType }) => {
@@ -11,7 +12,7 @@ const VesselAsset = ({ type }: { type: VesselType }) => {
   return <Clone object={scene} scale={spec.scale} castShadow receiveShadow />
 }
 
-export const OceanVessel = ({ type, vesselRef, collisionRef }: { type: VesselType; vesselRef: MutableRefObject<Group | null>; collisionRef: MutableRefObject<Object3D | null> }) => {
+export const OceanVessel = ({ type, vesselRef, collisionRef, navigationRef }: { type: VesselType; vesselRef: MutableRefObject<Group | null>; collisionRef: MutableRefObject<Object3D | null>; navigationRef: MutableRefObject<VesselNavigation> }) => {
   const foam = useRef<Group>(null)
   const buoyancy = useRef(restingBuoyancyState())
   const spec = vesselSpecs[type]
@@ -20,10 +21,12 @@ export const OceanVessel = ({ type, vesselRef, collisionRef }: { type: VesselTyp
   const collisionScene = useMemo(() => scene.clone(true), [scene])
   useFrame(({ clock }, delta) => {
     if (!vesselRef.current) return
-    buoyancy.current = stepBuoyancy(buoyancy.current, dimensions[0], dimensions[1], clock.getElapsedTime(), delta)
+    const navigation = navigationRef.current
+    buoyancy.current = stepBuoyancy(buoyancy.current, dimensions[0], dimensions[1], clock.getElapsedTime(), delta, navigation.x, navigation.z, navigation.heading)
     const attitude = buoyancy.current
-    vesselRef.current.position.y = attitude.heave + 0.18
+    vesselRef.current.position.set(navigation.x, attitude.heave + 0.18, navigation.z)
     vesselRef.current.rotation.x = attitude.pitch
+    vesselRef.current.rotation.y = navigation.heading
     vesselRef.current.rotation.z = attitude.roll
     if (foam.current) {
       const crest = Math.min(1, Math.abs(attitude.pitch) * 9 + Math.abs(attitude.roll) * 9)
