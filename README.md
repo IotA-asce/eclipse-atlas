@@ -1,32 +1,32 @@
-# React + TypeScript + Vite
+# Eclipse Atlas
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+An interactive globe that finds the next solar eclipse locally visible from a selected point on Earth. Coordinates and calculations stay in the browser.
 
-Currently, two official plugins are available:
+## Run locally
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Use the globe to orbit and zoom, then click the visible Earth surface. Eclipse circumstances are computed with Astronomy Engine and presented in the browser's local timezone.
+
+## Earth appearance and attribution
+
+The globe uses NASA's **Blue Marble — A Seamless Image Mosaic of the Earth** (2048 × 1024), an equirectangular Earth image from NASA Goddard Space Flight Center's Scientific Visualization Studio. It is included locally at `public/textures/earth-blue-marble-2048.png`, rendered as an sRGB Three.js texture, and horizontally aligned so its geographic longitudes match the selected-point calculation convention.
+
+- Source: [NASA SVS, Blue Marble — A Seamless Image Mosaic of the Earth](https://svs.gsfc.nasa.gov/2915/)
+- Usage: NASA imagery is generally not subject to U.S. copyright; this project includes no NASA insignia or endorsement. See [NASA media usage guidelines](https://www.nasa.gov/nasa-brand-center/images-and-media/).
+
+The Sun/Moon scene is illustrative and deliberately not to scale. It never supplies the eclipse calculation.
+
+If the map texture cannot load, Eclipse Atlas retains a high-contrast fallback globe and location selection remains available. Calculation errors preserve the selected point and offer an in-place retry.
+
+## Checks
+
+```bash
+npm run lint
+npm run test
+npm run build
+npm run test:e2e
+```
