@@ -12,4 +12,7 @@ test('selecting the visible Earth surface produces an eclipse result', async ({ 
 
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
   await expect(page.getByRole('region', { name: 'Next visible solar eclipse' })).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: 'Jump to eclipse' }).click()
+  await expect(page.getByRole('main', { name: 'Eclipse time jump simulation' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Exit simulation' })).toBeVisible()
 })
