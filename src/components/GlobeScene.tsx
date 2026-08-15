@@ -7,7 +7,6 @@ import { configureEarthMapTexture } from './earth-texture'
 import { majorCities } from './geography-data'
 import { coordinatesToSurfacePoint, splitLineAtAntimeridian, type LongitudeLatitude } from './geography'
 import { coordinatesFromEarthIntersection } from './globe-intersection'
-import { brightStars } from './bright-stars'
 import * as Astronomy from 'astronomy-engine'
 
 interface GlobeSceneProps {
@@ -201,15 +200,24 @@ const CelestialIllustration = ({ observer }: { observer?: Coordinates }) => {
 
 const RealStarField = ({ observer }: { observer?: Coordinates }) => {
   const [time, setTime] = useState(() => new Date())
+  const [catalog, setCatalog] = useState<Array<[number, number, number]>>([])
   useEffect(() => {
     const interval = window.setInterval(() => setTime(new Date()), 60_000)
     return () => window.clearInterval(interval)
+  }, [])
+  useEffect(() => {
+    let active = true
+    void fetch('/data/hyg-v41-mag-6_5.json')
+      .then((response) => response.ok ? response.json() as Promise<Array<[number, number, number]>> : [])
+      .then((stars) => { if (active) setCatalog(stars) })
+      .catch(() => undefined)
+    return () => { active = false }
   }, [])
   const positions = useMemo(() => {
     const location = observer ?? { latitude: 0, longitude: 0 }
     const astroObserver = new Astronomy.Observer(location.latitude, location.longitude, 0)
     const values: number[] = []
-    for (const [, ra, dec] of brightStars) {
+    for (const [ra, dec] of catalog) {
       const horizontal = Astronomy.Horizon(time, astroObserver, ra, dec, 'normal')
       if (horizontal.altitude <= 0) continue
       const altitude = horizontal.altitude * Math.PI / 180
@@ -219,10 +227,10 @@ const RealStarField = ({ observer }: { observer?: Coordinates }) => {
       values.push(radius * Math.cos(altitude) * Math.sin(azimuth), radius * Math.sin(altitude), radius * Math.cos(altitude) * Math.cos(azimuth))
     }
     return new Float32Array(values)
-  }, [observer, time])
+  }, [catalog, observer, time])
   return <points data-testid="real-star-field" raycast={() => undefined}>
     <bufferGeometry><bufferAttribute attach="attributes-position" args={[positions, 3]} /></bufferGeometry>
-    <pointsMaterial color="#fff7df" size={0.07} sizeAttenuation transparent opacity={0.92} depthWrite={false} />
+    <pointsMaterial color="#fff7df" size={0.028} sizeAttenuation transparent opacity={0.9} depthWrite={false} />
   </points>
 }
 
