@@ -1,12 +1,13 @@
 import { Html, OrbitControls, useTexture } from '@react-three/drei'
 import { Canvas, type ThreeEvent, useFrame, useThree } from '@react-three/fiber'
 import { Component, type ErrorInfo, type ReactNode, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { AdditiveBlending, BackSide, Group, SRGBColorSpace, Vector3 } from 'three'
+import { AdditiveBlending, BackSide, DataTexture, LinearFilter, RGBAFormat, SRGBColorSpace, Vector3 } from 'three'
 import type { Coordinates } from '../features/eclipse/coordinates'
 import { configureEarthMapTexture } from './earth-texture'
 import { majorCities } from './geography-data'
 import { coordinatesToSurfacePoint, splitLineAtAntimeridian, type LongitudeLatitude } from './geography'
 import { coordinatesFromEarthIntersection } from './globe-intersection'
+import { createCloudSimulation, stepCloudSimulation, writeCloudTexture } from '../features/atmosphere/cloud-simulation'
 import * as Astronomy from 'astronomy-engine'
 
 interface GlobeSceneProps {
@@ -22,7 +23,6 @@ const EARTH_RADIUS_KM = 6371
 const MEAN_MOON_DISTANCE = EARTH_RADIUS * 60.27
 const EARTH_MAP_URL = '/textures/earth-blue-marble-5400.png'
 const MOON_MAP_URL = '/textures/moon-lroc-color-2k.jpg'
-const CLOUD_MAP_URL = '/textures/earth-cloud-cover.png'
 const BORDER_DATA_URL = '/data/ne_110m_admin_0_boundary_lines_land.geojson'
 
 const formatCoordinate = (value: number, positive: string, negative: string) =>
@@ -116,19 +116,38 @@ const EarthMaterial = ({ onLoaded }: { onLoaded: () => void }) => {
 }
 
 const CloudLayer = () => {
-  const texture = useTexture(CLOUD_MAP_URL)
-  const cloudGroup = useRef<Group>(null)
+  const simulation = useMemo(() => createCloudSimulation(), [])
+  const texture = useMemo(() => {
+    const pixels = new Uint8Array(simulation.width * simulation.height * 4)
+    writeCloudTexture(simulation, pixels)
+    const generatedTexture = new DataTexture(pixels, simulation.width, simulation.height, RGBAFormat)
+    generatedTexture.colorSpace = SRGBColorSpace
+    generatedTexture.minFilter = LinearFilter
+    generatedTexture.magFilter = LinearFilter
+    generatedTexture.needsUpdate = true
+    return generatedTexture
+  }, [simulation])
+  const elapsedSinceUpdate = useRef(0)
+
   useEffect(() => {
-    texture.colorSpace = SRGBColorSpace
-    texture.needsUpdate = true
+    return () => texture.dispose()
   }, [texture])
   useFrame((_, delta) => {
-    if (cloudGroup.current) cloudGroup.current.rotation.y -= delta * 0.006
+    elapsedSinceUpdate.current += delta
+    if (elapsedSinceUpdate.current < 0.12) return
+    stepCloudSimulation(simulation, elapsedSinceUpdate.current * 0.8)
+    writeCloudTexture(simulation, texture.image.data as Uint8Array)
+    texture.needsUpdate = true
+    elapsedSinceUpdate.current = 0
   })
-  return <group ref={cloudGroup} raycast={() => undefined} data-testid="animated-cloud-layer">
+  return <group raycast={() => undefined} data-testid="simulated-cloud-layer">
     <mesh scale={1.012}>
       <sphereGeometry args={[EARTH_RADIUS, 96, 64]} />
-      <meshStandardMaterial map={texture} transparent opacity={0.7} depthWrite={false} roughness={0.9} />
+      <meshStandardMaterial map={texture} transparent opacity={0.78} depthWrite={false} roughness={0.94} />
+    </mesh>
+    <mesh scale={1.018}>
+      <sphereGeometry args={[EARTH_RADIUS, 96, 64]} />
+      <meshStandardMaterial map={texture} transparent opacity={0.18} depthWrite={false} roughness={1} />
     </mesh>
   </group>
 }
