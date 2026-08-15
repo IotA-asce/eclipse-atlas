@@ -5,7 +5,8 @@ export type LongitudeLatitude = readonly [longitude: number, latitude: number]
 
 export const coordinatesToSurfacePoint = ({ latitude, longitude }: Coordinates, radius: number) => {
   const latitudeRadians = (latitude * Math.PI) / 180
-  const longitudeRadians = (longitude * Math.PI) / 180
+  // Three's SphereGeometry UVs run opposite geographic east for an unmirrored map.
+  const longitudeRadians = longitude === 0 ? 0 : (-longitude * Math.PI) / 180
   const horizontalRadius = radius * Math.cos(latitudeRadians)
 
   return new Vector3(

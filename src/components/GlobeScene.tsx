@@ -283,7 +283,7 @@ const CameraPreset = ({ systemView }: { systemView: boolean }) => {
 
 /**
  * A navigable Earth whose mesh axes match `pointToCoordinates`: Y is north,
- * X is longitude 0°, and positive Z is east.
+ * X is longitude 0°, and negative Z is geographic east for the unmirrored map.
  */
 export const GlobeScene = ({ onSelectCoordinates, selectedCoordinates }: GlobeSceneProps) => {
   const [selectedLabel, setSelectedLabel] = useState('No location selected yet.')
