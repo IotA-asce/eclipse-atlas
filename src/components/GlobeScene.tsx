@@ -1,12 +1,14 @@
 import { OrbitControls, useTexture } from '@react-three/drei'
 import { Canvas, type ThreeEvent, useFrame } from '@react-three/fiber'
 import { Component, type ErrorInfo, type ReactNode, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { AdditiveBlending, BackSide, Group } from 'three'
+import { AdditiveBlending, BackSide, Group, SRGBColorSpace } from 'three'
 import type { Coordinates } from '../features/eclipse/coordinates'
 import { configureEarthMapTexture } from './earth-texture'
 import { majorCities } from './geography-data'
 import { coordinatesToSurfacePoint, moonPositionAt, splitLineAtAntimeridian, type LongitudeLatitude } from './geography'
 import { coordinatesFromEarthIntersection } from './globe-intersection'
+import { brightStars } from './bright-stars'
+import * as Astronomy from 'astronomy-engine'
 
 interface GlobeSceneProps {
   onSelectCoordinates: (coordinates: Coordinates) => void
@@ -15,6 +17,7 @@ interface GlobeSceneProps {
 
 const EARTH_RADIUS = 1.8
 const EARTH_MAP_URL = '/textures/earth-blue-marble-5400.png'
+const MOON_MAP_URL = '/textures/moon-lroc-color-2k.jpg'
 const BORDER_DATA_URL = '/data/ne_110m_admin_0_boundary_lines_land.geojson'
 
 const formatCoordinate = (value: number, positive: string, negative: string) =>
@@ -169,8 +172,8 @@ const CelestialIllustration = () => {
 
   return (
     <>
-      <group position={[-3.8, 2.5, -1.5]} raycast={() => undefined}>
-        <pointLight intensity={7} distance={14} color="#ffd886" />
+      <group position={[-4.6, 3.1, -3.2]} raycast={() => undefined}>
+        <pointLight intensity={11} distance={0} decay={0} color="#fff0c7" castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
         <mesh>
           <sphereGeometry args={[0.3, 28, 28]} />
           <meshBasicMaterial color="#fff2c2" toneMapped={false} />
@@ -181,13 +184,49 @@ const CelestialIllustration = () => {
         </mesh>
       </group>
       <group ref={moon} position={moonPositionAt(EARTH_RADIUS, 0)} raycast={() => undefined}>
-        <mesh>
-          <sphereGeometry args={[0.2, 24, 24]} />
-          <meshStandardMaterial color="#b8b4ad" roughness={1} />
-        </mesh>
+        <Moon />
       </group>
     </>
   )
+}
+
+const RealStarField = ({ observer }: { observer?: Coordinates }) => {
+  const [time, setTime] = useState(() => new Date())
+  useEffect(() => {
+    const interval = window.setInterval(() => setTime(new Date()), 60_000)
+    return () => window.clearInterval(interval)
+  }, [])
+  const positions = useMemo(() => {
+    const location = observer ?? { latitude: 0, longitude: 0 }
+    const astroObserver = new Astronomy.Observer(location.latitude, location.longitude, 0)
+    const values: number[] = []
+    for (const [, ra, dec] of brightStars) {
+      const horizontal = Astronomy.Horizon(time, astroObserver, ra, dec, 'normal')
+      if (horizontal.altitude <= 0) continue
+      const altitude = horizontal.altitude * Math.PI / 180
+      const azimuth = horizontal.azimuth * Math.PI / 180
+      const radius = 18
+      values.push(radius * Math.cos(altitude) * Math.sin(azimuth), radius * Math.sin(altitude), radius * Math.cos(altitude) * Math.cos(azimuth))
+    }
+    return new Float32Array(values)
+  }, [observer, time])
+  return <points data-testid="real-star-field" raycast={() => undefined}>
+    <bufferGeometry><bufferAttribute attach="attributes-position" args={[positions, 3]} /></bufferGeometry>
+    <pointsMaterial color="#fff7df" size={0.07} sizeAttenuation transparent opacity={0.92} depthWrite={false} />
+  </points>
+}
+
+const Moon = () => {
+  const texture = useTexture(MOON_MAP_URL)
+  useEffect(() => {
+    texture.colorSpace = SRGBColorSpace
+    texture.needsUpdate = true
+  }, [texture])
+
+  return <mesh castShadow receiveShadow>
+    <sphereGeometry args={[0.2, 64, 48]} />
+    <meshStandardMaterial map={texture} roughness={0.94} metalness={0} />
+  </mesh>
 }
 
 /**
@@ -208,10 +247,9 @@ export const GlobeScene = ({ onSelectCoordinates, selectedCoordinates }: GlobeSc
   return (
     <section className="globe-scene" aria-label="Interactive Earth globe">
       <Canvas camera={{ position: [0, 0.4, 5.5], fov: 42 }} dpr={[1, 1.75]} shadows>
-        <color attach="background" args={['#020711']} />
-        <ambientLight intensity={0.32} />
-        <directionalLight position={[-5, 3, 5]} intensity={2.1} color="#ffe6b0" castShadow />
-        <pointLight position={[2, -3, -2]} intensity={0.18} color="#1a83bd" />
+        <color attach="background" args={['#00030a']} />
+        <ambientLight intensity={0.035} />
+        <RealStarField observer={selectedCoordinates} />
         <Earth onSelectCoordinates={selectCoordinates} onMapLoaded={() => setMapState('ready')} onMapError={() => setMapState('error')} />
         {selectedCoordinates ? <SelectedLocationPin coordinates={selectedCoordinates} /> : null}
         <CelestialIllustration />
