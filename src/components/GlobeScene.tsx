@@ -1,7 +1,7 @@
 import { Html, OrbitControls, useTexture } from '@react-three/drei'
 import { Canvas, type ThreeEvent, useFrame, useThree } from '@react-three/fiber'
 import { Component, type ErrorInfo, type ReactNode, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { AdditiveBlending, BackSide, DataTexture, FrontSide, LinearFilter, RGBAFormat, SRGBColorSpace, ShaderMaterial, Vector3 } from 'three'
+import { AdditiveBlending, BackSide, DataTexture, FrontSide, Group, LinearFilter, Quaternion, RGBAFormat, SRGBColorSpace, ShaderMaterial, Vector3 } from 'three'
 import type { Coordinates } from '../features/eclipse/coordinates'
 import { configureEarthMapTexture } from './earth-texture'
 import { majorCities } from './geography-data'
@@ -35,18 +35,30 @@ const BodyLabel = ({ children, position }: { children: string; position: [number
   </Html>
 
 const SelectedLocationPin = ({ coordinates }: { coordinates: Coordinates }) => {
-  const pinPosition = coordinatesToSurfacePoint(coordinates, EARTH_RADIUS + 0.045)
+  const surfaceNormal = coordinatesToSurfacePoint(coordinates, 1).normalize()
+  const pinPosition = surfaceNormal.clone().multiplyScalar(EARTH_RADIUS + 0.02)
+  const orientation = new Quaternion().setFromUnitVectors(new Vector3(0, 0, 1), surfaceNormal)
+  const halo = useRef<Group>(null)
+
+  useFrame(({ clock }) => {
+    if (!halo.current) return
+    const pulse = 1 + Math.sin(clock.getElapsedTime() * 2.4) * 0.09
+    halo.current.scale.setScalar(pulse)
+  })
 
   return (
-    <group position={pinPosition.toArray()} data-testid="selected-location-pin">
-      <mesh>
-        <sphereGeometry args={[0.075, 20, 20]} />
-        <meshBasicMaterial color="#57b7ff" toneMapped={false} />
-      </mesh>
-      <mesh scale={1.65}>
-        <sphereGeometry args={[0.075, 20, 20]} />
-        <meshBasicMaterial color="#57b7ff" transparent opacity={0.18} toneMapped={false} />
-      </mesh>
+    <group position={pinPosition.toArray()} quaternion={orientation} data-testid="selected-location-pin" raycast={() => undefined}>
+      <pointLight color="#46c6ff" intensity={1.1} distance={1.1} decay={2} position={[0, 0, 0.12]} />
+      <group ref={halo} data-testid="selected-location-illuminator">
+        <mesh>
+          <ringGeometry args={[0.09, 0.125, 48]} />
+          <meshBasicMaterial color="#6bd7ff" transparent opacity={0.95} blending={AdditiveBlending} depthWrite={false} toneMapped={false} />
+        </mesh>
+        <mesh position={[0, 0, -0.001]}>
+          <circleGeometry args={[0.085, 48]} />
+          <meshBasicMaterial color="#24b9ff" transparent opacity={0.25} blending={AdditiveBlending} depthWrite={false} toneMapped={false} />
+        </mesh>
+      </group>
     </group>
   )
 }

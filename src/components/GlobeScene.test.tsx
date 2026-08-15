@@ -28,7 +28,7 @@ it('converts a known canvas intersection into a selected geographic point', () =
   expect(screen.getByTestId('globe-canvas')).toBeInTheDocument()
 })
 
-it('renders a non-interactive pin for an already selected location', () => {
+it('renders a non-interactive surface illuminator for an already selected location', () => {
   render(
     <GlobeScene
       onSelectCoordinates={vi.fn()}
@@ -37,6 +37,7 @@ it('renders a non-interactive pin for an already selected location', () => {
   )
 
   expect(screen.getByTestId('selected-location-pin')).not.toHaveAttribute('tabindex')
+  expect(screen.getByTestId('selected-location-illuminator')).toBeInTheDocument()
 })
 
 it('does not render city labels until the camera is close enough', () => {
