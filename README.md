@@ -20,7 +20,9 @@ The globe uses NASA's **Blue Marble Next Generation — August 2004 with topogra
 
 Country boundaries use the locally bundled [Natural Earth 1:110m Admin 0 boundary lines](https://www.naturalearthdata.com/), which Natural Earth distributes in the public domain. The restrained city points are a small, app-maintained list of major world cities; both layers are bundled with the application and do not fetch geographic data from third parties at runtime.
 
-The Sun/Moon scene is illustrative and deliberately not to scale. Its Moon orbit always remains outside the rendered Earth and it never supplies the eclipse calculation.
+The full-page scene uses one rendered Sun light source for Earth and Moon illumination. The Moon uses NASA SVS's 2025 LROC global color mosaic (2K), assembled from Lunar Reconnaissance Orbiter camera data; it is an equirectangular surface map centered at 0° longitude. Credit: NASA Scientific Visualization Studio / LRO camera teams. Source: [NASA SVS CGI Moon Kit](https://svs.gsfc.nasa.gov/4720/).
+
+The night sky uses a locally bundled bright-star catalog with J2000 right ascension/declination values. Astronomy Engine projects those stars above the selected observer's horizon at the current time and refreshes every minute. It is a compact bright-star field, not a complete planetarium catalog. The Sun/Moon scene remains deliberately non-scale and never supplies the eclipse calculation.
 
 If the map texture cannot load, Eclipse Atlas retains a high-contrast fallback globe and location selection remains available. Calculation errors preserve the selected point and offer an in-place retry.
 
