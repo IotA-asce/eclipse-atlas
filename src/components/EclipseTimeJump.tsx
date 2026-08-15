@@ -106,7 +106,7 @@ const ShipHelm = ({ vesselRef, navigationRef }: { vesselRef: MutableRefObject<Gr
     chaseTarget.set(0, 2.1, -3.5); hull.localToWorld(chaseTarget)
     camera.position.lerp(chasePosition, 1 - Math.exp(-delta * 4.5))
     camera.lookAt(chaseTarget)
-  }, 1)
+  })
   return null
 }
 
