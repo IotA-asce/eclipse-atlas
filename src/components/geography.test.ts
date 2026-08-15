@@ -3,10 +3,10 @@ import { describe, expect, it } from 'vitest'
 import { coordinatesToSurfacePoint, minimumMoonDistance, splitLineAtAntimeridian } from './geography'
 
 describe('coordinatesToSurfacePoint', () => {
-  it('keeps the prime meridian on the positive X axis and east on positive Z', () => {
+  it('keeps the prime meridian on the positive X axis and east on negative Z', () => {
     expect(coordinatesToSurfacePoint({ latitude: 0, longitude: 0 }, 2)).toEqual(new Vector3(2, 0, 0))
     expect(coordinatesToSurfacePoint({ latitude: 0, longitude: 90 }, 2).x).toBeCloseTo(0)
-    expect(coordinatesToSurfacePoint({ latitude: 0, longitude: 90 }, 2).z).toBeCloseTo(2)
+    expect(coordinatesToSurfacePoint({ latitude: 0, longitude: 90 }, 2).z).toBeCloseTo(-2)
   })
 })
 

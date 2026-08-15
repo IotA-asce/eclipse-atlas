@@ -14,7 +14,8 @@ const radiansToDegrees = (radians: number) => radians * (180 / Math.PI)
 /**
  * Converts an Earth mesh-local point into geographic coordinates.
  *
- * The globe uses Y as north, X as longitude 0°, and positive Z as east.
+ * The globe uses Y as north and X as longitude 0°. SphereGeometry's UV
+ * direction makes negative Z geographic east for the unmirrored Earth map.
  * Inputs are normalized so intersections from a scaled sphere produce the
  * same coordinates as points on the unit sphere.
  */
@@ -29,8 +30,10 @@ export const pointToCoordinates = ({ x, y, z }: GlobePoint): Coordinates => {
   const normalizedY = y / magnitude
   const normalizedZ = z / magnitude
 
+  const longitude = -radiansToDegrees(Math.atan2(normalizedZ, normalizedX))
+
   return {
     latitude: radiansToDegrees(Math.asin(normalizedY)),
-    longitude: radiansToDegrees(Math.atan2(normalizedZ, normalizedX)),
+    longitude: Object.is(longitude, -0) ? 0 : longitude,
   }
 }

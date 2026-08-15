@@ -8,3 +8,7 @@ it('maps the top of a globe to the north pole', () => {
 it('normalizes a point before calculating coordinates', () => {
   expect(pointToCoordinates({ x: 2, y: 0, z: 0 })).toEqual({ latitude: 0, longitude: 0 })
 })
+
+it('maps negative Z to geographic east for the unmirrored Earth texture', () => {
+  expect(pointToCoordinates({ x: 0, y: 0, z: -1 })).toEqual({ latitude: 0, longitude: 90 })
+})
