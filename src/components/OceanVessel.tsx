@@ -1,8 +1,8 @@
 import { Clone, useGLTF } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { type MutableRefObject, useMemo, useRef } from 'react'
-import { type Group } from 'three'
-import { vesselAttitude } from '../features/time-jump/ocean'
+import { type Group, type Object3D } from 'three'
+import { restingBuoyancyState, stepBuoyancy } from '../features/time-jump/buoyancy'
 import { vesselSpecs, type VesselType } from '../features/time-jump/vessel-types'
 
 const VesselAsset = ({ type }: { type: VesselType }) => {
@@ -11,13 +11,17 @@ const VesselAsset = ({ type }: { type: VesselType }) => {
   return <Clone object={scene} scale={spec.scale} castShadow receiveShadow />
 }
 
-export const OceanVessel = ({ type, vesselRef }: { type: VesselType; vesselRef: MutableRefObject<Group | null> }) => {
+export const OceanVessel = ({ type, vesselRef, collisionRef }: { type: VesselType; vesselRef: MutableRefObject<Group | null>; collisionRef: MutableRefObject<Object3D | null> }) => {
   const foam = useRef<Group>(null)
+  const buoyancy = useRef(restingBuoyancyState())
   const spec = vesselSpecs[type]
   const dimensions = useMemo(() => [spec.deck.halfLength * 2, spec.deck.halfWidth * 2] as const, [spec])
-  useFrame(({ clock }) => {
+  const { scene } = useGLTF(spec.model)
+  const collisionScene = useMemo(() => scene.clone(true), [scene])
+  useFrame(({ clock }, delta) => {
     if (!vesselRef.current) return
-    const attitude = vesselAttitude(dimensions[0], dimensions[1], clock.getElapsedTime())
+    buoyancy.current = stepBuoyancy(buoyancy.current, dimensions[0], dimensions[1], clock.getElapsedTime(), delta)
+    const attitude = buoyancy.current
     vesselRef.current.position.y = attitude.heave + 0.18
     vesselRef.current.rotation.x = attitude.pitch
     vesselRef.current.rotation.z = attitude.roll
@@ -29,6 +33,7 @@ export const OceanVessel = ({ type, vesselRef }: { type: VesselType; vesselRef: 
   })
   return <group ref={vesselRef} data-testid="ocean-vessel">
     <VesselAsset key={type} type={type} />
+    <primitive ref={collisionRef} object={collisionScene} scale={spec.scale} visible={false} />
     <group ref={foam} position={[0, 0.08, 0]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]}><torusGeometry args={[spec.deck.halfWidth * 0.92, 0.07, 8, 36]} /><meshBasicMaterial color="#e7fbff" transparent opacity={0.66} /></mesh>
       <mesh position={[0, 0.06, -spec.deck.halfLength]}><sphereGeometry args={[spec.deck.halfWidth * 0.44, 16, 10]} /><meshBasicMaterial color="#e7fbff" transparent opacity={0.36} /></mesh>
