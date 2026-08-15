@@ -24,23 +24,29 @@ const bodyDirection = (body: Astronomy.Body, location: ObserverLocation, time: D
 
 const ObserverCamera = ({ direction }: { direction: Vector3 }) => {
   const { camera } = useThree()
+  const initialDirection = useRef(direction.clone())
   useEffect(() => {
     camera.position.set(0, 1.65, 0)
-    camera.lookAt(direction.clone().multiplyScalar(25).add(new Vector3(0, 1.65, 0)))
-  }, [camera, direction])
+    camera.lookAt(initialDirection.current.clone().multiplyScalar(25).add(new Vector3(0, 1.65, 0)))
+  }, [camera])
   return null
 }
 
 const FirstPersonMovement = () => {
   const { camera } = useThree()
+  const { gl } = useThree()
   const held = useRef(new Set<string>())
   useEffect(() => {
-    const down = (event: KeyboardEvent) => held.current.add(event.code)
+    const down = (event: KeyboardEvent) => {
+      if (document.pointerLockElement !== gl.domElement) return
+      if (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) event.preventDefault()
+      held.current.add(event.code)
+    }
     const up = (event: KeyboardEvent) => held.current.delete(event.code)
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
-  }, [])
+  }, [gl])
   useEffect(() => {
     const listener = () => { held.current.clear() }
     window.addEventListener('blur', listener)
@@ -50,25 +56,19 @@ const FirstPersonMovement = () => {
 }
 
 const MovementFrame = ({ camera, held }: { camera: Camera; held: MutableRefObject<Set<string>> }) => {
-  const { gl } = useThree()
-  useEffect(() => {
-    const move = (event: KeyboardEvent) => {
-      if (!['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) return
-      if (document.pointerLockElement === gl.domElement) event.preventDefault()
-    }
-    window.addEventListener('keydown', move)
-    return () => window.removeEventListener('keydown', move)
-  }, [gl])
+  const forward = useMemo(() => new Vector3(), [])
+  const right = useMemo(() => new Vector3(), [])
+  const displacement = useMemo(() => new Vector3(), [])
   useFrame((_, delta) => {
     const keys = held.current
-    const forward = new Vector3(0, 0, -1).applyQuaternion(camera.quaternion); forward.y = 0; forward.normalize()
-    const right = new Vector3(1, 0, 0).applyQuaternion(camera.quaternion); right.y = 0; right.normalize()
-    const displacement = new Vector3()
+    forward.set(0, 0, -1).applyQuaternion(camera.quaternion); forward.y = 0; forward.normalize()
+    right.set(1, 0, 0).applyQuaternion(camera.quaternion); right.y = 0; right.normalize()
+    displacement.set(0, 0, 0)
     if (keys.has('KeyW')) displacement.add(forward)
     if (keys.has('KeyS')) displacement.sub(forward)
     if (keys.has('KeyD')) displacement.add(right)
     if (keys.has('KeyA')) displacement.sub(right)
-    if (displacement.lengthSq() > 0) camera.position.addScaledVector(displacement.normalize(), delta * 3.2)
+    if (displacement.lengthSq() > 0) camera.position.addScaledVector(displacement.normalize(), Math.min(delta, 0.05) * 4.2)
   })
   return null
 }
