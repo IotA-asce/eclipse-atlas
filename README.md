@@ -22,7 +22,7 @@ Country boundaries use the locally bundled [Natural Earth 1:110m Admin 0 boundar
 
 The full-page scene uses one rendered Sun light source for Earth and Moon illumination. The Moon uses NASA SVS's 2025 LROC global color mosaic (2K), assembled from Lunar Reconnaissance Orbiter camera data; it is an equirectangular surface map centered at 0° longitude. Credit: NASA Scientific Visualization Studio / LRO camera teams. Source: [NASA SVS CGI Moon Kit](https://svs.gsfc.nasa.gov/4720/).
 
-The night sky uses a locally bundled bright-star catalog with J2000 right ascension/declination values. Astronomy Engine projects those stars above the selected observer's horizon at the current time and refreshes every minute. It is a compact bright-star field, not a complete planetarium catalog. The Sun/Moon scene remains deliberately non-scale and never supplies the eclipse calculation.
+The night sky uses 8,920 locally bundled HYG v4.1 stars to apparent magnitude 6.5, with J2000 right ascension/declination values. Astronomy Engine projects those stars above the selected observer's horizon at the current time and refreshes every minute. HYG combines Hipparcos, Yale Bright Star, and Gliese catalog data; source: [Astronexus HYG Database](https://github.com/astronexus/hyg-database). The Sun/Moon scene remains deliberately non-scale and never supplies the eclipse calculation.
 
 If the map texture cannot load, Eclipse Atlas retains a high-contrast fallback globe and location selection remains available. Calculation errors preserve the selected point and offer an in-place retry.
 
