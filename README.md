@@ -41,6 +41,7 @@ Eclipse Atlas is a browser-based astronomy experience built around an interactiv
 | `eclipse-service` | Astronomy Engine boundary that finds the next eclipse with an above-horizon local phase. |
 | `EclipseResultCard` | Accessible presentation of location, type, peak time, coverage, and phase circumstances. |
 | `EclipseTimeJump` | Observer-mode timeline, local scene selection, celestial display, and simulation controls. |
+| `DeferredTimeJump` | Loads the optional observer view on request, with loading and failure paths back to the selected globe result. |
 | `OceanVessel` | Third-person craft, buoyancy samples, steering, chase camera, and model switching. |
 | Atmosphere modules | Deterministic cloud field, GPU cloud shader, star projection, and atmospheric sky treatment. |
 
@@ -71,6 +72,11 @@ npm run test
 npm run build
 npm run test:e2e
 ```
+
+The optional Time Jump module is downloaded when **Jump to eclipse** is selected.
+While it loads, or if the view cannot open, **Back to globe** retains the current
+observing point and eclipse result. The main globe and its shared Three.js code
+still load initially. See [the measured loading boundary](docs/deferred-time-jump.md).
 
 ## Project structure
 

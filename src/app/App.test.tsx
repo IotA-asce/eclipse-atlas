@@ -16,6 +16,14 @@ vi.mock('../components/GlobeScene', () => ({
 
 vi.mock('../features/eclipse/eclipse-service', () => ({ findNextLocalSolarEclipse }))
 
+vi.mock('../components/EclipseTimeJump', () => ({
+  EclipseTimeJump: ({ onExit }: { onExit: () => void }) => (
+    <main aria-label="Eclipse time jump simulation">
+      <button type="button" onClick={onExit}>Exit simulation</button>
+    </main>
+  ),
+}))
+
 const eclipse: LocalSolarEclipse = {
   kind: 'Partial',
   obscuration: 0.7423,
@@ -47,4 +55,18 @@ it('preserves the selected point and offers a retry when calculation fails', () 
 
   fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
   expect(screen.getByRole('region', { name: 'Next visible solar eclipse' })).toBeVisible()
+})
+
+it('opens the deferred observer view and retains the selected result on exit', async () => {
+  findNextLocalSolarEclipse.mockReturnValue(eclipse)
+  render(<App />)
+  fireEvent.click(screen.getByRole('button', { name: 'Select New York' }))
+  const result = screen.getByRole('region', { name: 'Next visible solar eclipse' }).textContent
+
+  fireEvent.click(screen.getByRole('button', { name: 'Jump to eclipse' }))
+  expect(await screen.findByRole('main', { name: 'Eclipse time jump simulation' })).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: 'Exit simulation' }))
+
+  expect(screen.getByRole('region', { name: 'Next visible solar eclipse' })).toHaveTextContent(result!)
+  expect(screen.getByRole('button', { name: 'Jump to eclipse' })).toBeVisible()
 })

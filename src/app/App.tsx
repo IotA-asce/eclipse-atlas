@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { EclipseResultCard } from '../components/EclipseResultCard'
 import { GlobeScene } from '../components/GlobeScene'
-import { EclipseTimeJump } from '../components/EclipseTimeJump'
+import { DeferredTimeJump } from '../components/DeferredTimeJump'
 import { findNextLocalSolarEclipse } from '../features/eclipse/eclipse-service'
 import type { LocalSolarEclipse, ObserverLocation } from '../features/eclipse/types'
 
@@ -27,7 +27,7 @@ function App() {
     calculateForLocation(coordinates)
   }
 
-  if (timeJump && eclipse && location) return <EclipseTimeJump eclipse={eclipse} location={location} onExit={() => setTimeJump(false)} />
+  if (timeJump && eclipse && location) return <DeferredTimeJump eclipse={eclipse} location={location} onExit={() => setTimeJump(false)} />
 
   return (
     <main className="atlas-shell">
