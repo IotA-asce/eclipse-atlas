@@ -27,7 +27,7 @@ Eclipse Atlas is a browser-based astronomy experience built around an interactiv
 
 | Context | Controls |
 | --- | --- |
-| Globe | Drag to orbit · scroll to zoom · click Earth to select a location |
+| Globe | Drag to orbit · scroll to zoom · click Earth, or use **Enter coordinates** for a keyboard-accessible exact point |
 | Land Time Jump | Click the scene for mouse-look · **W/A/S/D** to move |
 | Ocean Time Jump | **W/S** or ↑/↓ for throttle · **A/D** or ←/→ to steer |
 | Ocean vessel | **Z** cycles sailboat, fishing trawler, cargo ship, and cruise ship |
@@ -37,6 +37,7 @@ Eclipse Atlas is a browser-based astronomy experience built around an interactiv
 
 | Area | Responsibility |
 | --- | --- |
+| `CoordinateEntry` | Validates signed decimal coordinates and selects through the existing local calculation path. |
 | `GlobeScene` | React Three Fiber globe, map interaction, selection marker, borders, and major-city data. |
 | `eclipse-service` | Astronomy Engine boundary that finds the next eclipse with an above-horizon local phase. |
 | `EclipseResultCard` | Accessible presentation of location, type, peak time, coverage, and phase circumstances. |
@@ -112,3 +113,5 @@ The images above are captured from the local development build and are maintaine
 ## License
 
 Project source licensing has not yet been specified. Third-party data and assets retain the attribution and terms noted above.
+
+Coordinate ranges, keyboard controls and state preservation are described in [coordinate entry](docs/coordinate-entry.md).

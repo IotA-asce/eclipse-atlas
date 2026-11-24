@@ -38,6 +38,7 @@ it('renders a non-interactive surface illuminator for an already selected locati
 
   expect(screen.getByTestId('selected-location-pin')).not.toHaveAttribute('tabindex')
   expect(screen.getByTestId('selected-location-illuminator')).toBeInTheDocument()
+  expect(screen.getByText('Selected 33.87° S, 151.21° E')).toBeInTheDocument()
 })
 
 it('does not render city labels until the camera is close enough', () => {

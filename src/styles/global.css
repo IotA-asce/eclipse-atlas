@@ -33,7 +33,20 @@ select {
 h1, h2, p { margin-top: 0; }
 h1, h2 { font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif; font-weight: 400; letter-spacing: -0.04em; }
 h1 { margin-bottom: 0.8rem; font-size: clamp(3.25rem, 8vw, 6.5rem); line-height: 0.9; }
-.atlas-intro > p:last-child { max-width: 37rem; color: #bdcbd5; font-size: clamp(1rem, 1.6vw, 1.2rem); line-height: 1.55; }
+.atlas-intro > p:not(.eyebrow) { max-width: 37rem; color: #bdcbd5; font-size: clamp(1rem, 1.6vw, 1.2rem); line-height: 1.55; }
+.coordinate-entry { pointer-events: auto; width: fit-content; }
+.coordinate-entry__trigger { padding: 0.65rem 0.85rem; border: 1px solid rgb(193 224 241 / 50%); background: #0a1b2b; color: #e7f3f9; cursor: pointer; }
+.coordinate-dialog { position: fixed; width: min(26rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); padding: 1.4rem; border: 1px solid #ffc96e; background: #071320; color: #f6f1e6; overflow-y: auto; pointer-events: auto; }
+.coordinate-dialog::backdrop { background: rgb(0 3 10 / 78%); }
+.coordinate-dialog h2 { margin-bottom: 0.8rem; font-size: 2rem; }
+.coordinate-dialog p { color: #bdcbd5; line-height: 1.5; }
+.coordinate-dialog label { display: block; margin-top: 0.9rem; margin-bottom: 0.35rem; }
+.coordinate-dialog input { display: block; width: 100%; min-width: 0; padding: 0.65rem; border: 1px solid #9fb3c0; background: #020711; color: #f6f1e6; }
+.coordinate-dialog input[aria-invalid="true"] { border-color: #ffb7a5; }
+.coordinate-dialog .coordinate-dialog__error { color: #ffb7a5; margin: 0.8rem 0 0; }
+.coordinate-dialog__actions { display: flex; flex-wrap: wrap; gap: 0.7rem; margin-top: 1rem; }
+.coordinate-dialog__actions .retry-button { margin-top: 0; }
+.coordinate-entry__trigger:focus-visible, .coordinate-dialog input:focus-visible { outline: 3px solid #d5effd; outline-offset: 3px; }
 .atlas-workspace { min-height: 100vh; }
 .globe-scene { position: relative; width: 100vw; height: 100vh; overflow: hidden; animation: emerge 800ms 100ms ease-out both; }
 .globe-scene > div { position: absolute !important; inset: 0; }

@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { EclipseResultCard } from '../components/EclipseResultCard'
 import { GlobeScene } from '../components/GlobeScene'
 import { DeferredTimeJump } from '../components/DeferredTimeJump'
+import { CoordinateEntry } from '../components/CoordinateEntry'
 import { findNextLocalSolarEclipse } from '../features/eclipse/eclipse-service'
 import type { LocalSolarEclipse, ObserverLocation } from '../features/eclipse/types'
 
@@ -35,6 +36,7 @@ function App() {
         <p className="eyebrow">A celestial field guide</p>
         <h1>Eclipse Atlas</h1>
         <p>Choose a point on Earth to find the next solar eclipse visible from that exact horizon.</p>
+        <CoordinateEntry selectedCoordinates={location} onSelectCoordinates={selectLocation} />
       </header>
       <div className="atlas-workspace">
         <GlobeScene onSelectCoordinates={selectLocation} selectedCoordinates={location} />

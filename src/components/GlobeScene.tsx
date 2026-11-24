@@ -352,7 +352,9 @@ const CameraPreset = ({ systemView }: { systemView: boolean }) => {
  * X is longitude 0°, and negative Z is geographic east for the unmirrored map.
  */
 export const GlobeScene = ({ onSelectCoordinates, selectedCoordinates }: GlobeSceneProps) => {
-  const [selectedLabel, setSelectedLabel] = useState('No location selected yet.')
+  const selectedLabel = selectedCoordinates
+    ? `Selected ${formatCoordinate(selectedCoordinates.latitude, 'N', 'S')}, ${formatCoordinate(selectedCoordinates.longitude, 'E', 'W')}`
+    : 'No location selected yet.'
   const [mapState, setMapState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [systemView, setSystemView] = useState(false)
   const [sceneTime, setSceneTime] = useState(() => new Date())
@@ -362,13 +364,6 @@ export const GlobeScene = ({ onSelectCoordinates, selectedCoordinates }: GlobeSc
   }, [])
   const sunDirection = useMemo(() => geocentricSceneVector(Astronomy.Body.Sun, sceneTime).normalize(), [sceneTime])
 
-  const selectCoordinates = (coordinates: Coordinates) => {
-    setSelectedLabel(
-      `Selected ${formatCoordinate(coordinates.latitude, 'N', 'S')}, ${formatCoordinate(coordinates.longitude, 'E', 'W')}`,
-    )
-    onSelectCoordinates(coordinates)
-  }
-
   return (
     <section className="globe-scene" aria-label="Interactive Earth globe">
       <Canvas camera={{ position: [0, 0.4, 5.5], fov: 42, far: EARTH_RADIUS * 30_000 }} dpr={[1, 1.75]} shadows>
@@ -376,7 +371,7 @@ export const GlobeScene = ({ onSelectCoordinates, selectedCoordinates }: GlobeSc
         <ambientLight intensity={0.035} />
         <RealStarField observer={selectedCoordinates} />
         <CameraPreset systemView={systemView} />
-        <Earth onSelectCoordinates={selectCoordinates} onMapLoaded={() => setMapState('ready')} onMapError={() => setMapState('error')} sunDirection={sunDirection} />
+        <Earth onSelectCoordinates={onSelectCoordinates} onMapLoaded={() => setMapState('ready')} onMapError={() => setMapState('error')} sunDirection={sunDirection} />
         {selectedCoordinates ? <SelectedLocationPin coordinates={selectedCoordinates} /> : null}
         <CelestialIllustration time={sceneTime} />
         <OrbitControls enableDamping dampingFactor={0.08} enablePan={false} minDistance={3.2} maxDistance={EARTH_RADIUS * 100} />
