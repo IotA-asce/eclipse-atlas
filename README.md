@@ -9,7 +9,7 @@ Eclipse Atlas is a browser-based astronomy experience built around an interactiv
 ## What it does
 
 - **Select an observing point** directly on a textured, geographically referenced 3D Earth.
-- **Calculate the next locally visible solar eclipse** for that exact latitude and longitude, including eclipse type, peak local time, coverage, and phase timings.
+- **Calculate the next locally visible solar eclipse** for that exact latitude and longitude, including eclipse type, peak time, coverage, and phase timings.
 - **Keep the result local:** an eclipse whose partial phase remains below the local horizon is skipped.
 - **Jump to the event** from a stylized land or ocean observer scene, beginning at real-time speed two minutes before first contact.
 - **Explore the scene:** land mode supports mouse-look and movement; ocean mode provides a third-person vessel command view with multiple craft.
@@ -48,7 +48,7 @@ Eclipse Atlas is a browser-based astronomy experience built around an interactiv
 
 ## Scientific model and visual model
 
-Eclipse calculations use [Astronomy Engine](https://github.com/cosinekitty/astronomy) in the browser. The service validates coordinates and searches forward until a partial, peak, or end phase is above the observer’s horizon. Results are formatted in the browser’s local time zone.
+Eclipse calculations use [Astronomy Engine](https://github.com/cosinekitty/astronomy) in the browser. The service validates coordinates and searches forward until a partial, peak, or end phase is above the observer’s horizon. The result card identifies the browser time zone used for the peak and all phase times.
 
 The Time Jump is intentionally a **visual interpretation**, not a survey-grade reconstruction of an observing site. The displayed Sun and Moon use topocentric directions for the simulated observer time; their screen-friendly discs, perceptual horizon cue, terrain, ocean, clouds, vessel behavior, and sky are real-time render approximations. They do not alter the eclipse calculation or its contact times.
 

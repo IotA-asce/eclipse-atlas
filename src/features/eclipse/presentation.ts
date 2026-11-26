@@ -9,6 +9,7 @@ export interface PresentedEclipse {
   coordinates: string
   type: string
   peak: string
+  timeZone: string
   coverage: string
   partialPhase: {
     label: 'Partial phase'
@@ -32,13 +33,6 @@ const formatCoordinate = (value: number, positiveHemisphere: string, negativeHem
   return `${magnitude}° ${hemisphere}`
 }
 
-const formatTime = (time: Date, locale: string, timeZone: string | undefined) =>
-  new Intl.DateTimeFormat(locale, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-    ...(timeZone ? { timeZone } : {}),
-  }).format(time)
-
 /**
  * Converts calculation-domain eclipse data into concise, locale-aware display copy.
  * The timezone is injectable so the UI can use the visitor's zone while tests stay
@@ -49,18 +43,24 @@ export const presentEclipse = (
   location: ObserverLocation,
   { locale = 'en-US', timeZone }: PresentationOptions = {},
 ): PresentedEclipse => {
+  const timeFormatter = new Intl.DateTimeFormat(locale, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    ...(timeZone ? { timeZone } : {}),
+  })
   const centralPhase = eclipse.centralPhase
     ? {
         label: eclipse.kind === 'Annular' ? ('Annular phase' as const) : ('Total phase' as const),
-        begin: formatTime(eclipse.centralPhase.begin.time, locale, timeZone),
-        end: formatTime(eclipse.centralPhase.end.time, locale, timeZone),
+        begin: timeFormatter.format(eclipse.centralPhase.begin.time),
+        end: timeFormatter.format(eclipse.centralPhase.end.time),
       }
     : undefined
 
   return {
     coordinates: `${formatCoordinate(location.latitude, 'N', 'S', locale)}, ${formatCoordinate(location.longitude, 'E', 'W', locale)}`,
     type: `${eclipse.kind} solar eclipse`,
-    peak: formatTime(eclipse.peak.time, locale, timeZone),
+    peak: timeFormatter.format(eclipse.peak.time),
+    timeZone: timeFormatter.resolvedOptions().timeZone,
     coverage: new Intl.NumberFormat(locale, {
       style: 'percent',
       maximumFractionDigits: 1,
@@ -68,8 +68,8 @@ export const presentEclipse = (
     }).format(eclipse.obscuration),
     partialPhase: {
       label: 'Partial phase',
-      begin: formatTime(eclipse.partialPhase.begin.time, locale, timeZone),
-      end: formatTime(eclipse.partialPhase.end.time, locale, timeZone),
+      begin: timeFormatter.format(eclipse.partialPhase.begin.time),
+      end: timeFormatter.format(eclipse.partialPhase.end.time),
     },
     ...(centralPhase ? { centralPhase } : {}),
   }

@@ -18,13 +18,16 @@ const partialEclipse: LocalSolarEclipse = {
 }
 
 describe('presentEclipse', () => {
-  it('formats the peak in the injected timezone', () => {
+  it('formats the peak and phase times in the reported time zone', () => {
     const result = presentEclipse(partialEclipse, location, {
       locale: 'en-US',
       timeZone: 'America/New_York',
     })
 
+    expect(result.timeZone).toBe('America/New_York')
     expect(result.peak).toBe('Aug 12, 2026, 1:24 PM')
+    expect(result.partialPhase.begin).toBe('Aug 12, 2026, 12:16 PM')
+    expect(result.partialPhase.end).toBe('Aug 12, 2026, 2:31 PM')
   })
 
   it('does not create a central-phase label for a partial eclipse', () => {

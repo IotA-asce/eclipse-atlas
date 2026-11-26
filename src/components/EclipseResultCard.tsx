@@ -26,10 +26,11 @@ export const EclipseResultCard = ({ eclipse, location, locale, timeZone }: Eclip
   return (
     <section aria-labelledby="eclipse-result-heading">
       <h2 id="eclipse-result-heading">Next visible solar eclipse</h2>
+      <p>All times shown in {result.timeZone}.</p>
       <dl>
         <ResultRow term="Location">{result.coordinates}</ResultRow>
         <ResultRow term="Eclipse type">{result.type}</ResultRow>
-        <ResultRow term="Peak local time">{result.peak}</ResultRow>
+        <ResultRow term="Peak time">{result.peak}</ResultRow>
         <ResultRow term="Maximum coverage">{result.coverage}</ResultRow>
         <ResultRow term={result.partialPhase.label}>
           Begins {result.partialPhase.begin}; ends {result.partialPhase.end}.
