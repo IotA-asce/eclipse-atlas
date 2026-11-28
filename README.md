@@ -54,12 +54,12 @@ The Time Jump is intentionally a **visual interpretation**, not a survey-grade r
 
 ## Run locally
 
-**Prerequisite:** Node.js 20 or newer.
+**Prerequisite:** Node.js 22.22.2 or later in the 22.x line, 24.15.0 or later in the 24.x line, or 26.0.0 and newer.
 
 ```bash
 git clone https://github.com/IotA-asce/eclipse-atlas.git
 cd eclipse-atlas
-npm install
+npm ci
 npm run dev
 ```
 
@@ -71,6 +71,7 @@ Open the URL printed by Vite, usually `http://localhost:5173`.
 npm run lint
 npm run test
 npm run build
+npx playwright install chromium
 npm run test:e2e
 ```
 
